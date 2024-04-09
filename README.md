@@ -1,59 +1,52 @@
-# Voluptuous Serialize
+# Voluptuous OpenAPI
 
-Convert Voluptuous schemas to dictionaries so they can be serialized.
+Convert Voluptuous schemas to [OpenAPI Schema object](https://spec.openapis.org/oas/v3.0.3#schema-object).
 
 ```python
-from collections import OrderedDict
-
-# Use OrderedDict instead of dict.
-# Only starting Python 3.6+ are dictionaries ordered.
-schema = OrderedDict()
+schema = {}
 schema[vol.Required('name')] = vol.All(str, vol.Length(min=5))
-schema[vol.Required('age')] = vol.All(vol.Coerce(int), vol.Range(min=18))
+schema[vol.Required('age', description='Age in full years')] = vol.All(vol.Coerce(int), vol.Range(min=18))
 schema[vol.Optional('hobby', default='not specified')] = str
 schema = vol.Schema(schema)
 ```
 
 becomes
 
-_(dictionaries become lists to guarantee order of properties)_
-
 ```json
-[
-  {
-    "name": "name",
-    "type": "string",
-    "lengthMin": 5,
-    "required": true,
-  },
-  {
-    "name": "age",
-    "type": "integer",
-    "valueMin": 18,
-    "required": true,
-  },
-  {
-    "name": "hobby",
-    "type": "string",
-    "default": "not specified",
-    "optional": true,
-  }
-]
+{
+    "type": "object",
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 5,
+        },
+        "age": {
+            "type": "integer",
+            "minimum": 18,
+            "description": "Age in full years",
+        },
+        "hobby": {
+            "type": "string",
+            "default": "not specified",
+        },
+    },
+    "required": ["name", "age"],
+}
 ```
 
 See the tests for more examples.
 
 ## Custom serializer
 
-You can pass a custom serializer to be able to process custom validators. If the serializer returns `UNSUPPORTED`, it will return to normal processing.
+You can pass a custom serializer to be able to process custom validators. If the serializer returns `UNSUPPORTED`, it will return to normal processing. Example:
 
 ```python
 
-from voluptuous_serialize import UNSUPPORTED, convert
+from voluptuous_openai import UNSUPPORTED, convert
 
 def custom_convert(value):
     if value is my_custom_validator:
-        return {'type': 'custom_validator'}
+        return {'pattern': '^[a-zA-Z0-9]$'}
         
     return UNSUPPORTED
 

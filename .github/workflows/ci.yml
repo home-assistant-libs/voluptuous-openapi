@@ -25,10 +25,10 @@ jobs:
           pip install -e .
       - name: Lint with flake8
         run: |
-          flake8 voluptuous_serialize
+          flake8 voluptuous_openapi
       - name: Test with pytest
         run: |
           pytest tests
       - name: Check formatting with black
         run: |
-          black voluptuous_serialize tests --check
+          black voluptuous_openapi tests --check
