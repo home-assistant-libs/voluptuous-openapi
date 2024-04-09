@@ -15,20 +15,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4.1.2
-      - name: Set up Python 3.8
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5.1.0
         with:
-          python-version: 3.8
+          python-version: 3.12
       - name: Install dependencies
         run: |
           pip install -r requirements_test.txt
           pip install -e .
       - name: Lint with flake8
         run: |
-          flake8 voluptuous_serialize
+          flake8 voluptuous_openapi
       - name: Test with pytest
         run: |
           pytest tests
       - name: Check formatting with black
         run: |
-          black voluptuous_serialize tests --check
+          black voluptuous_openapi tests --check
