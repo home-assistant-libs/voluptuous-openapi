@@ -1,6 +1,7 @@
 from enum import Enum
 
 import voluptuous as vol
+from typing import Any
 
 from voluptuous_openapi import UNSUPPORTED, convert
 
@@ -191,6 +192,7 @@ def test_custom_serializer():
 def test_constant():
     for value in True, False, "Hello", 1, None:
         assert {"enum": [value]} == convert(vol.Schema(value))
+    assert {"enum": [None]} == convert(vol.Schema(type(None)))
 
 
 def test_enum():
@@ -208,6 +210,18 @@ def test_list():
     } == convert(vol.Schema([str]))
 
 
+def test_any_of():
+    assert {"anyOf": [{"type": "number"}, {"type": "integer"}]} == convert(
+        vol.Any(float, int)
+    )
+
+
+def test_all_of():
+    assert {"allOf": [{"minimum": 5}, {"minimum": 10}]} == convert(
+        vol.All(vol.Range(min=5), vol.Range(min=10))
+    )
+
+
 def test_key_any():
     assert {
         "type": "object",
@@ -223,3 +237,39 @@ def test_key_any():
         },
         "required": [],
     } == convert(vol.Schema({vol.Any("name", "area"): str}))
+
+
+def test_function():
+    def validator(data):
+        return data
+
+    assert {
+        "type": "object",
+        "properties": {"test_data": {"type": "string"}},
+        "required": [],
+    } == convert(vol.Schema({"test_data": validator}))
+
+    def validator_str(data: str):
+        return data
+
+    assert {"type": "string"} == convert(vol.Schema(validator_str))
+
+    def validator_any(data: Any):
+        return data
+
+    assert {} == convert(validator_any)
+    assert {"type": "integer"} == convert(vol.All(vol.Coerce(int), lambda x: x / 100))
+
+    def validator_nullable(data: float | None):
+        return data
+
+    assert {"type": "number", "nullable": True} == convert(
+        vol.Schema(validator_nullable)
+    )
+
+    def validator_union(data: float | int):
+        return data
+
+    assert {"anyOf": [{"type": "number"}, {"type": "integer"}]} == convert(
+        vol.Schema(validator_union)
+    )

@@ -2,7 +2,9 @@
 
 from collections.abc import Callable, Mapping, Sequence
 from enum import Enum
-from typing import Any
+from typing import Any, get_args, get_type_hints
+from types import NoneType, UnionType
+from inspect import signature
 
 import voluptuous as vol
 
@@ -30,6 +32,13 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
         val = custom_serializer(schema)
         if val is not UNSUPPORTED:
             return val
+
+    if isinstance(schema, vol.Object):
+        schema = schema.schema
+        if custom_serializer:
+            val = custom_serializer(schema)
+            if val is not UNSUPPORTED:
+                return val
 
     if isinstance(schema, Mapping):
         properties = {}
@@ -66,6 +75,12 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
             if isinstance(key, (vol.Required, vol.Optional)):
                 if key.default is not vol.UNDEFINED:
                     pval["default"] = key.default()
+
+            if all(
+                x not in pval
+                for x in ("type", "enum", "anyOf", "oneOf", "allOf", "not")
+            ):
+                pval["type"] = "string"  # Type not determined, using default
 
             pkey = str(pkey)
             properties[pkey] = pval
@@ -143,18 +158,23 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
         }
 
     if isinstance(schema, vol.Any):
-        # vol.Maybe
-        if len(schema.validators) == 2 and schema.validators[0] is None:
-            result = convert(schema.validators[1], custom_serializer=custom_serializer)
+        schema = schema.validators
+        if None in schema or NoneType in schema:
+            schema = [val for val in schema if val is not None and val is not NoneType]
+            nullable = True
+        else:
+            nullable = False
+        if len(schema) == 1:
+            result = convert(schema[0], custom_serializer=custom_serializer)
+        else:
+            result = {
+                "anyOf": [
+                    convert(val, custom_serializer=custom_serializer) for val in schema
+                ]
+            }
+        if nullable:
             result["nullable"] = True
-            return result
-
-        return {
-            "anyOf": [
-                convert(val, custom_serializer=custom_serializer)
-                for val in schema.validators
-            ]
-        }
+        return result
 
     if isinstance(schema, vol.Coerce):
         schema = schema.type
@@ -178,7 +198,20 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
     if schema in TYPES_MAP:
         return {"type": TYPES_MAP[schema]}
 
-    if isinstance(schema, type) and issubclass(schema, Enum):
-        return {"enum": [item.value for item in schema]}
+    if isinstance(schema, type):
+        if issubclass(schema, Enum):
+            return {"enum": [item.value for item in schema]}
+        elif schema is NoneType:
+            return {"enum": [None]}
+
+    if callable(schema):
+        schema = get_type_hints(schema).get(
+            list(signature(schema).parameters.keys())[0], Any
+        )
+        if schema is Any:
+            return {}
+        if isinstance(schema, UnionType):
+            schema = vol.Any(*get_args(schema))
+        return convert(schema, custom_serializer=custom_serializer)
 
     raise ValueError("Unable to convert schema: {}".format(schema))
