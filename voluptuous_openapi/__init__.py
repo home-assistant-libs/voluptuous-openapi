@@ -2,7 +2,7 @@
 
 from collections.abc import Callable, Mapping, Sequence
 from enum import Enum
-from typing import Any, get_args, get_type_hints
+from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 from types import NoneType, UnionType
 from inspect import signature
 
@@ -22,6 +22,15 @@ UNSUPPORTED = object()
 def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
     """Convert a voluptuous schema to a OpenAPI Schema object."""
     # pylint: disable=too-many-return-statements,too-many-branches
+
+    def ensure_default(value: dict[str:Any]):
+        """Make sure that type is set."""
+        if all(
+            x not in value for x in ("type", "enum", "anyOf", "oneOf", "allOf", "not")
+        ):
+            value["type"] = "string"  # Type not determined, using default
+        return value
+
     additional_properties = None
     if isinstance(schema, vol.Schema):
         if schema.extra == vol.ALLOW_EXTRA:
@@ -76,12 +85,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                 if key.default is not vol.UNDEFINED:
                     pval["default"] = key.default()
 
-            if all(
-                x not in pval
-                for x in ("type", "enum", "anyOf", "oneOf", "allOf", "not")
-            ):
-                pval["type"] = "string"  # Type not determined, using default
-
+            pval = ensure_default(pval)
             pkey = str(pkey)
             properties[pkey] = pval
 
@@ -109,7 +113,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                 val.update(v)
         if fallback:
             return {"allOf": allOf}
-        return val
+        return ensure_default(val)
 
     if isinstance(schema, (vol.Clamp, vol.Range)):
         val = {}
@@ -186,12 +190,15 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
         if len(schema) == 1:
             return {
                 "type": "array",
-                "items": convert(schema[0], custom_serializer=custom_serializer),
+                "items": ensure_default(
+                    convert(schema[0], custom_serializer=custom_serializer)
+                ),
             }
         return {
             "type": "array",
             "items": [
-                convert(s, custom_serializer=custom_serializer) for s in schema.items()
+                ensure_default(convert(s, custom_serializer=custom_serializer))
+                for s in schema.items()
             ],
         }
 
@@ -208,10 +215,16 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
         schema = get_type_hints(schema).get(
             list(signature(schema).parameters.keys())[0], Any
         )
-        if schema is Any:
+        if schema is Any or isinstance(schema, TypeVar):
             return {}
-        if isinstance(schema, UnionType):
-            schema = vol.Any(*get_args(schema))
+        if isinstance(schema, UnionType) or get_origin(schema) is Union:
+            schema = [t for t in get_args(schema) if not isinstance(t, TypeVar)]
+            if len(schema) > 1:
+                schema = vol.Any(*schema)
+            elif len(schema) == 1 and schema[0] is not NoneType:
+                schema = schema[0]
+            else:
+                return {}
         return convert(schema, custom_serializer=custom_serializer)
 
     raise ValueError("Unable to convert schema: {}".format(schema))

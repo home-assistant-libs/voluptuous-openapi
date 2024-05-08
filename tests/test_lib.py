@@ -1,7 +1,7 @@
 from enum import Enum
 
 import voluptuous as vol
-from typing import Any
+from typing import Any, TypeVar
 
 from voluptuous_openapi import UNSUPPORTED, convert
 
@@ -273,3 +273,14 @@ def test_function():
     assert {"anyOf": [{"type": "number"}, {"type": "integer"}]} == convert(
         vol.Schema(validator_union)
     )
+
+    _T = TypeVar("_T")
+
+    def validator_nullable_2(value: _T | None):
+        return value
+
+    assert {
+        "type": "object",
+        "properties": {"var": {"type": "array", "items": {"type": "string"}}},
+        "required": [],
+    } == convert(vol.Schema({"var": vol.All(validator_nullable_2, [validator_any])}))
