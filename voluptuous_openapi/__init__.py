@@ -205,7 +205,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
     if schema in TYPES_MAP:
         return {"type": TYPES_MAP[schema]}
 
-    if schema is list:
+    if schema is list or schema is set:
         return {"type": "array", "items": ensure_default({})}
 
     if schema is dict:
@@ -242,7 +242,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                         schema, custom_serializer=custom_serializer
                     ),
                 }
-        if get_origin(schema) is list:
+        if get_origin(schema) is list or get_origin(schema) is set:
             schema = [get_args(schema)[0]]
 
         return convert(schema, custom_serializer=custom_serializer)

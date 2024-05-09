@@ -304,6 +304,21 @@ def test_function():
 
     assert {"type": "array", "items": {"type": "string"}} == convert(validator_list)
 
+    def validator_set_int(value: set[int]):
+        return value
+
+    assert {"type": "array", "items": {"type": "integer"}} == convert(validator_set_int)
+
+    def validator_set_any(value: set[Any]):
+        return value
+
+    assert {"type": "array", "items": {"type": "string"}} == convert(validator_set_any)
+
+    def validator_set(value: set):
+        return value
+
+    assert {"type": "array", "items": {"type": "string"}} == convert(validator_set)
+
     def validator_dict(value: dict):
         return value
 
