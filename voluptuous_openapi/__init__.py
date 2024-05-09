@@ -205,6 +205,12 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
     if schema in TYPES_MAP:
         return {"type": TYPES_MAP[schema]}
 
+    if schema is list:
+        return {"type": "array", "items": ensure_default({})}
+
+    if schema is dict:
+        return {"type": "object", "additionalProperties": True}
+
     if isinstance(schema, type):
         if issubclass(schema, Enum):
             return {"enum": [item.value for item in schema]}
@@ -225,6 +231,20 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                 schema = schema[0]
             else:
                 return {}
+        if get_origin(schema) is dict:
+            schema = get_args(schema)[1]
+            if schema is Any or isinstance(schema, TypeVar):
+                schema = dict
+            else:
+                return {
+                    "type": "object",
+                    "additionalProperties": convert(
+                        schema, custom_serializer=custom_serializer
+                    ),
+                }
+        if get_origin(schema) is list:
+            schema = [get_args(schema)[0]]
+
         return convert(schema, custom_serializer=custom_serializer)
 
     raise ValueError("Unable to convert schema: {}".format(schema))

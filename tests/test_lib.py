@@ -209,6 +209,8 @@ def test_list():
         "items": {"type": "string"},
     } == convert(vol.Schema([str]))
 
+    assert {"type": "array", "items": {"type": "string"}} == convert(vol.Schema(list))
+
 
 def test_any_of():
     assert {"anyOf": [{"type": "number"}, {"type": "integer"}]} == convert(
@@ -284,3 +286,32 @@ def test_function():
         "properties": {"var": {"type": "array", "items": {"type": "string"}}},
         "required": [],
     } == convert(vol.Schema({"var": vol.All(validator_nullable_2, [validator_any])}))
+
+    def validator_list_int(value: list[int]):
+        return value
+
+    assert {"type": "array", "items": {"type": "integer"}} == convert(
+        validator_list_int
+    )
+
+    def validator_list_any(value: list[Any]):
+        return value
+
+    assert {"type": "array", "items": {"type": "string"}} == convert(validator_list_any)
+
+    def validator_list(value: list):
+        return value
+
+    assert {"type": "array", "items": {"type": "string"}} == convert(validator_list)
+
+    def validator_dict(value: dict):
+        return value
+
+    assert {"type": "object", "additionalProperties": True} == convert(validator_dict)
+
+    def validator_dict_int(value: dict[str, int]):
+        return value
+
+    assert {"type": "object", "additionalProperties": {"type": "integer"}} == convert(
+        validator_dict_int
+    )
