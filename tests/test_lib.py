@@ -228,16 +228,10 @@ def test_key_any():
     assert {
         "type": "object",
         "properties": {
-            "name": {
-                "type": "string",
-                "description": "At least one of ('name', 'area') must be provided",
-            },
-            "area": {
-                "type": "string",
-                "description": "At least one of ('name', 'area') must be provided",
-            },
+            "name": {"type": "string"},
+            "area": {"type": "string"},
         },
-        "required": [],
+        "oneOf": [{"required": ["name"]}, {"required": ["area"]}],
     } == convert(vol.Schema({vol.Any("name", "area"): str}))
 
 

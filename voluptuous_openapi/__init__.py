@@ -51,23 +51,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
 
     if isinstance(schema, Mapping):
         properties = {}
-        required = []
-
-        # Unfold vol.Any in keys
-        if vol.Any in [type(k) for k in schema.keys()]:
-            pschema = {}
-            for key, value in schema.items():
-                if isinstance(key, vol.Any):
-                    description = key.msg
-                    if not description:
-                        description = (
-                            f"At least one of {key.validators} must be provided"
-                        )
-                    for val in key.validators:
-                        pschema[vol.Optional(val, description=description)] = value
-                else:
-                    pschema[key] = value
-            schema = pschema
+        required = {"oneOf": [{"required": []}]}
 
         for key, value in schema.items():
             description = None
@@ -86,13 +70,31 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                     pval["default"] = key.default()
 
             pval = ensure_default(pval)
-            pkey = str(pkey)
-            properties[pkey] = pval
+
+            if isinstance(pkey, vol.Any):
+                for val in pkey.validators:
+                    properties[str(val)] = pval
+                if not isinstance(key, vol.Optional):
+                    _required = {"oneOf": []}
+                    for one in required["oneOf"]:
+                        for val in pkey.validators:
+                            _one = one.copy()
+                            _one["required"] = one["required"].copy()
+                            _one["required"].append(str(val))
+                            _required["oneOf"].append(_one)
+                    required = _required
+            else:
+                properties[str(pkey)] = pval
 
             if isinstance(key, vol.Required):
-                required.append(pkey)
+                for one in required["oneOf"]:
+                    one["required"].append(pkey)
 
-        val = {"type": "object", "properties": properties, "required": required}
+        if len(required["oneOf"]) == 1:
+            required = required["oneOf"][0]
+
+        val = {"type": "object", "properties": properties}
+        val.update(required)
         if additional_properties:
             val["additionalProperties"] = additional_properties
         return val
