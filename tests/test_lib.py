@@ -91,6 +91,14 @@ def test_dict():
         )
     )
 
+    assert {"type": "object", "additionalProperties": True} == convert(vol.Schema(dict))
+
+    assert {"type": "object", "additionalProperties": True} == convert(vol.Schema(dict[str, Any]))
+
+    assert {"type": "object", "additionalProperties": {"type": "integer"}} == convert(vol.Schema({str: int}))
+
+    assert {"type": "object", 'properties': {'x': {'type': 'integer'}}, 'required': [], "additionalProperties": {"type": "string"}} == convert(vol.Schema({"x": int, str: str}))
+
 
 def test_marker_description():
     assert {
@@ -210,6 +218,10 @@ def test_list():
     } == convert(vol.Schema([str]))
 
     assert {"type": "array", "items": {"type": "string"}} == convert(vol.Schema(list))
+
+    assert {"type": "array", "items": {"type": "string"}} == convert(vol.Schema(list[Any]))
+
+    assert {"type": "array", "items": {"type": "integer"}} == convert(vol.Schema(list[int]))
 
 
 def test_any_of():
