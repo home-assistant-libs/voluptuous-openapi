@@ -100,6 +100,11 @@ def test_dict():
     assert {"type": "object", 'properties': {'x': {'type': 'integer'}}, 'required': [], "additionalProperties": {"type": "string"}} == convert(vol.Schema({"x": int, str: str}))
 
 
+def test_tuple():
+    assert {"type": "array", "items": {"type": "string"}} == convert(vol.Schema(tuple))
+    assert {"type": "array", "items": {"type": "string"}} == convert(vol.Schema(tuple[Any]))
+    assert {"type": "array", "items": {"type": "integer"}} == convert(vol.Schema(tuple[int]))
+
 def test_marker_description():
     assert {
         "type": "object",

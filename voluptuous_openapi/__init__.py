@@ -194,7 +194,11 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
     if isinstance(schema, (str, int, float, bool)) or schema is None:
         return {"enum": [schema]}
 
-    if get_origin(schema) is list or get_origin(schema) is set:
+    if (
+        get_origin(schema) is list
+        or get_origin(schema) is set
+        or get_origin(schema) is tuple
+    ):
         schema = [get_args(schema)[0]]
 
     if isinstance(schema, Sequence):
@@ -226,7 +230,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
         if schema is dict:
             return {"type": "object", "additionalProperties": True}
 
-        if schema is list or schema is set:
+        if schema is list or schema is set or schema is tuple:
             return {"type": "array", "items": ensure_default({})}
 
         if issubclass(schema, Enum):
