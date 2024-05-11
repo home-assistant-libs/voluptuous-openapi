@@ -53,22 +53,6 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
         properties = {}
         required = []
 
-        # Unfold vol.Any in keys
-        if vol.Any in [type(k) for k in schema.keys()]:
-            pschema = {}
-            for key, value in schema.items():
-                if isinstance(key, vol.Any):
-                    description = key.msg
-                    if not description:
-                        description = (
-                            f"At least one of {key.validators} must be provided"
-                        )
-                    for val in key.validators:
-                        pschema[vol.Optional(val, description=description)] = value
-                else:
-                    pschema[key] = value
-            schema = pschema
-
         for key, value in schema.items():
             description = None
             if isinstance(key, vol.Marker):
@@ -86,16 +70,25 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                     pval["default"] = key.default()
 
             pval = ensure_default(pval)
-            if isinstance(pkey, str):
-                properties[pkey] = pval
-            elif isinstance(pkey, type) and issubclass(pkey, str):
+
+            if isinstance(pkey, type) and issubclass(pkey, str):
                 if additional_properties is None:
                     additional_properties = pval
+            elif isinstance(key, vol.Any):
+                for val in key.validators:
+                    if isinstance(val, vol.Marker):
+                        if val.description:
+                            properties[str(val.schema)] = pval.copy()
+                            properties[str(val.schema)]["description"] = val.description
+                        else:
+                            properties[str(val)] = pval
+                    else:
+                        properties[str(val)] = pval
             else:
-                raise ValueError("Unsupported key type: {}".format(pkey))
+                properties[str(pkey)] = pval
 
             if isinstance(key, vol.Required):
-                required.append(pkey)
+                required.append(str(pkey))
 
         val = {"type": "object"}
         if properties:

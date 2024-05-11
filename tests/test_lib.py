@@ -93,17 +93,31 @@ def test_dict():
 
     assert {"type": "object", "additionalProperties": True} == convert(vol.Schema(dict))
 
-    assert {"type": "object", "additionalProperties": True} == convert(vol.Schema(dict[str, Any]))
+    assert {"type": "object", "additionalProperties": True} == convert(
+        vol.Schema(dict[str, Any])
+    )
 
-    assert {"type": "object", "additionalProperties": {"type": "integer"}} == convert(vol.Schema({str: int}))
+    assert {"type": "object", "additionalProperties": {"type": "integer"}} == convert(
+        vol.Schema({str: int})
+    )
 
-    assert {"type": "object", 'properties': {'x': {'type': 'integer'}}, 'required': [], "additionalProperties": {"type": "string"}} == convert(vol.Schema({"x": int, str: str}))
+    assert {
+        "type": "object",
+        "properties": {"x": {"type": "integer"}},
+        "required": [],
+        "additionalProperties": {"type": "string"},
+    } == convert(vol.Schema({"x": int, str: str}))
 
 
 def test_tuple():
     assert {"type": "array", "items": {"type": "string"}} == convert(vol.Schema(tuple))
-    assert {"type": "array", "items": {"type": "string"}} == convert(vol.Schema(tuple[Any]))
-    assert {"type": "array", "items": {"type": "integer"}} == convert(vol.Schema(tuple[int]))
+    assert {"type": "array", "items": {"type": "string"}} == convert(
+        vol.Schema(tuple[Any])
+    )
+    assert {"type": "array", "items": {"type": "integer"}} == convert(
+        vol.Schema(tuple[int])
+    )
+
 
 def test_marker_description():
     assert {
@@ -224,9 +238,13 @@ def test_list():
 
     assert {"type": "array", "items": {"type": "string"}} == convert(vol.Schema(list))
 
-    assert {"type": "array", "items": {"type": "string"}} == convert(vol.Schema(list[Any]))
+    assert {"type": "array", "items": {"type": "string"}} == convert(
+        vol.Schema(list[Any])
+    )
 
-    assert {"type": "array", "items": {"type": "integer"}} == convert(vol.Schema(list[int]))
+    assert {"type": "array", "items": {"type": "integer"}} == convert(
+        vol.Schema(list[int])
+    )
 
 
 def test_any_of():
@@ -247,15 +265,22 @@ def test_key_any():
         "properties": {
             "name": {
                 "type": "string",
-                "description": "At least one of ('name', 'area') must be provided",
             },
             "area": {
                 "type": "string",
-                "description": "At least one of ('name', 'area') must be provided",
+                "description": "The ID or the area",
             },
         },
         "required": [],
-    } == convert(vol.Schema({vol.Any("name", "area"): str}))
+    } == convert(
+        vol.Schema(
+            {
+                vol.Any(
+                    "name", vol.Optional("area", description="The ID or the area")
+                ): str
+            }
+        )
+    )
 
 
 def test_function():
