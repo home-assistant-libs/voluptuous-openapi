@@ -53,22 +53,6 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
         properties = {}
         required = []
 
-        # Unfold vol.Any in keys
-        if vol.Any in [type(k) for k in schema.keys()]:
-            pschema = {}
-            for key, value in schema.items():
-                if isinstance(key, vol.Any):
-                    description = key.msg
-                    if not description:
-                        description = (
-                            f"At least one of {key.validators} must be provided"
-                        )
-                    for val in key.validators:
-                        pschema[vol.Optional(val, description=description)] = value
-                else:
-                    pschema[key] = value
-            schema = pschema
-
         for key, value in schema.items():
             description = None
             if isinstance(key, vol.Marker):
@@ -86,13 +70,30 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                     pval["default"] = key.default()
 
             pval = ensure_default(pval)
-            pkey = str(pkey)
-            properties[pkey] = pval
+
+            if isinstance(pkey, type) and issubclass(pkey, str):
+                if additional_properties is None:
+                    additional_properties = pval
+            elif isinstance(key, vol.Any):
+                for val in key.validators:
+                    if isinstance(val, vol.Marker):
+                        if val.description:
+                            properties[str(val.schema)] = pval.copy()
+                            properties[str(val.schema)]["description"] = val.description
+                        else:
+                            properties[str(val)] = pval
+                    else:
+                        properties[str(val)] = pval
+            else:
+                properties[str(pkey)] = pval
 
             if isinstance(key, vol.Required):
-                required.append(pkey)
+                required.append(str(pkey))
 
-        val = {"type": "object", "properties": properties, "required": required}
+        val = {"type": "object"}
+        if properties:
+            val["properties"] = properties
+            val["required"] = required
         if additional_properties:
             val["additionalProperties"] = additional_properties
         return val
@@ -186,6 +187,13 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
     if isinstance(schema, (str, int, float, bool)) or schema is None:
         return {"enum": [schema]}
 
+    if (
+        get_origin(schema) is list
+        or get_origin(schema) is set
+        or get_origin(schema) is tuple
+    ):
+        schema = [get_args(schema)[0]]
+
     if isinstance(schema, Sequence):
         if len(schema) == 1:
             return {
@@ -205,13 +213,19 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
     if schema in TYPES_MAP:
         return {"type": TYPES_MAP[schema]}
 
-    if schema is list or schema is set:
-        return {"type": "array", "items": ensure_default({})}
-
-    if schema is dict:
-        return {"type": "object", "additionalProperties": True}
+    if get_origin(schema) is dict:
+        if get_args(schema)[1] is Any or isinstance(get_args(schema)[1], TypeVar):
+            schema = dict
+        else:
+            return convert({get_args(schema)[0]: get_args(schema)[1]})
 
     if isinstance(schema, type):
+        if schema is dict:
+            return {"type": "object", "additionalProperties": True}
+
+        if schema is list or schema is set or schema is tuple:
+            return {"type": "array", "items": ensure_default({})}
+
         if issubclass(schema, Enum):
             return {"enum": [item.value for item in schema]}
         elif schema is NoneType:
@@ -231,19 +245,6 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                 schema = schema[0]
             else:
                 return {}
-        if get_origin(schema) is dict:
-            schema = get_args(schema)[1]
-            if schema is Any or isinstance(schema, TypeVar):
-                schema = dict
-            else:
-                return {
-                    "type": "object",
-                    "additionalProperties": convert(
-                        schema, custom_serializer=custom_serializer
-                    ),
-                }
-        if get_origin(schema) is list or get_origin(schema) is set:
-            schema = [get_args(schema)[0]]
 
         return convert(schema, custom_serializer=custom_serializer)
 
