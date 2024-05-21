@@ -108,6 +108,10 @@ def test_dict():
         "additionalProperties": {"type": "string"},
     } == convert(vol.Schema({"x": int, str: str}))
 
+    assert {"type": "object", "properties": {}, "required": []} == convert(
+        vol.Schema({})
+    )
+
 
 def test_tuple():
     assert {"type": "array", "items": {"type": "string"}} == convert(vol.Schema(tuple))
