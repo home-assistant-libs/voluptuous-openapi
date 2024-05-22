@@ -91,7 +91,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                 required.append(str(pkey))
 
         val = {"type": "object"}
-        if properties:
+        if properties or not additional_properties:
             val["properties"] = properties
             val["required"] = required
         if additional_properties:
