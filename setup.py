@@ -4,7 +4,7 @@ setup(
     name="voluptuous-openapi",
     version="0.0.4",
     description="Convert voluptuous schemas to OpenAPI Schema object",
-    url="http://github.com/Shulyaka/voluptuous-openapi",
+    url="https://github.com/home-assistant-libs/voluptuous-openapi",
     author="Denis Shulyaka",
     author_email="Shulyaka@gmail.com",
     license="Apache License 2.0",
