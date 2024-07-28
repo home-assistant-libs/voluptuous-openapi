@@ -269,8 +269,12 @@ def test_any_of():
         vol.Any(float, int)
     )
 
-    assert {"anyOf": [{"type": "number"}, {"type": "integer"}]} == convert(vol.Any(float, int, float, int, int))
-    assert {"type": "object", "additionalProperties": True} == convert(vol.Any(float, int, object))
+    assert {"anyOf": [{"type": "number"}, {"type": "integer"}]} == convert(
+        vol.Any(float, int, float, int, int)
+    )
+    assert {"type": "object", "additionalProperties": True} == convert(
+        vol.Any(float, int, object)
+    )
 
 
 def test_all_of():
@@ -279,7 +283,9 @@ def test_all_of():
     )
 
     assert {"type": "string"} == convert(vol.All(object, str))
-    assert {"type": "object", "additionalProperties": {"type": "string"}} == convert(vol.All(object, {str: str}))
+    assert {"type": "object", "additionalProperties": {"type": "string"}} == convert(
+        vol.All(object, {str: str})
+    )
 
 
 def test_key_any():
