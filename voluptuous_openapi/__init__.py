@@ -71,10 +71,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
 
             pval = ensure_default(pval)
 
-            if isinstance(pkey, type) and issubclass(pkey, str):
-                if additional_properties is None:
-                    additional_properties = pval
-            elif isinstance(key, vol.Any):
+            if isinstance(key, vol.Any):
                 for val in key.validators:
                     if isinstance(val, vol.Marker):
                         if val.description:
@@ -84,8 +81,14 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                             properties[str(val)] = pval
                     else:
                         properties[str(val)] = pval
+            elif isinstance(pkey, str):
+                properties[pkey] = pval
             else:
-                properties[str(pkey)] = pval
+                if pval == {"type": "object", "additionalProperties": True}:
+                    pval = True
+                    additional_properties = None
+                if additional_properties is None:
+                    additional_properties = pval
 
             if isinstance(key, vol.Required):
                 required.append(str(pkey))
@@ -230,6 +233,9 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
             return {"enum": [item.value for item in schema]}
         elif schema is NoneType:
             return {"enum": [None]}
+
+    if schema is object:
+        return {"type": "object", "additionalProperties": True}
 
     if callable(schema):
         schema = get_type_hints(schema).get(
