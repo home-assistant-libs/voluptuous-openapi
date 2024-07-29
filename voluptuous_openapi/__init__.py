@@ -25,9 +25,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
 
     def ensure_default(value: dict[str:Any]):
         """Make sure that type is set."""
-        if all(
-            x not in value for x in ("type", "anyOf", "oneOf", "allOf", "not")
-        ):
+        if all(x not in value for x in ("type", "anyOf", "oneOf", "allOf", "not")):
             value["type"] = "string"  # Type not determined, using default
         return value
 
