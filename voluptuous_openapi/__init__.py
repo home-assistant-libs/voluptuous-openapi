@@ -225,8 +225,11 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
     if isinstance(schema, vol.Coerce):
         schema = schema.type
 
-    if isinstance(schema, (str, int, float, bool)) or schema is None:
-        return {"enum": [schema]}
+    if isinstance(schema, (str, int, float, bool)):
+        return {"type": TYPES_MAP[type(schema)], "enum": [schema]}
+
+    if schema is None:
+        return {"type": "object", "nullable": True, "description": "Must be null"}
 
     if (
         get_origin(schema) is list
@@ -268,9 +271,14 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
             return {"type": "array", "items": ensure_default({})}
 
         if issubclass(schema, Enum):
-            return {"enum": [item.value for item in schema]}
+            enum_values = list(item.value for item in schema)
+            if enum_values:
+                enum_type = TYPES_MAP.get(type(enum_values[0]), "string")
+            else:
+                enum_type = "string"
+            return {"type": enum_type, "enum": enum_values}
         elif schema is NoneType:
-            return {"enum": [None]}
+            return {"type": "object", "nullable": True, "description": "Must be null"}
 
     if schema is object:
         return {"type": "object", "additionalProperties": True}
