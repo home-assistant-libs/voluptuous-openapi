@@ -267,13 +267,13 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                     nullable = True
                     tmpAnyOf = []
                     for item in anyOf:
-                        if not "nullable" in item:
+                        if "nullable" not in item:
                             tmpAnyOf.append(item)
                             continue
                         tmpItem = item.copy()
                         tmpItem.pop("nullable")
                         tmpAnyOf.append(tmpItem)
-                    anyOf=tmpAnyOf
+                    anyOf = tmpAnyOf
 
                 if len(anyOf) == 1:
                     result = anyOf[0]
