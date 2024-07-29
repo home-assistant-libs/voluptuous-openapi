@@ -279,6 +279,7 @@ def test_any_of():
     assert {"anyOf": [{"type": "number"}, {"type": "integer"}]} == convert(
         vol.Any(float, int, float, int, int)
     )
+
     assert {"type": "object", "additionalProperties": True} == convert(
         vol.Any(float, int, object)
     )
@@ -290,8 +291,13 @@ def test_all_of():
     )
 
     assert {"type": "string"} == convert(vol.All(object, str))
+
     assert {"type": "object", "additionalProperties": {"type": "string"}} == convert(
         vol.All(object, {str: str})
+    )
+
+    assert {"maximum": 10, "minimum": 5, "type": "number"} == convert(
+        vol.All(vol.Range(min=5), vol.Range(max=10))
     )
 
 
