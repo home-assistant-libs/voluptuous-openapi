@@ -105,7 +105,11 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
         allOf = []
         for validator in schema.validators:
             v = convert(validator, custom_serializer=custom_serializer)
-            if not v:
+            if (
+                not v
+                or v in allOf
+                or v == {"type": "object", "additionalProperties": True}
+            ):
                 continue
             if v.keys() & val.keys():
                 # Some of the keys are intersecting - fallback to allOf
@@ -181,11 +185,33 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
         if len(schema) == 1:
             result = convert(schema[0], custom_serializer=custom_serializer)
         else:
-            result = {
-                "anyOf": [
-                    convert(val, custom_serializer=custom_serializer) for val in schema
-                ]
-            }
+            anyOf = [
+                convert(val, custom_serializer=custom_serializer) for val in schema
+            ]
+            if {"type": "object", "additionalProperties": True} in anyOf:
+                result = {"type": "object", "additionalProperties": True}
+            else:
+                tmpAnyOf = []
+                for item in anyOf:
+                    if item in tmpAnyOf:  # Remove duplicated items
+                        continue
+                    tmpItem = item.copy()
+                    if item.get(
+                        "nullable"
+                    ):  # Merge "nullable" property into an existing item
+                        tmpItem.pop("nullable")
+                        if tmpItem in tmpAnyOf:
+                            tmpAnyOf[tmpAnyOf.index(tmpItem)]["nullable"] = True
+                            continue
+                    tmpItem["nullable"] = True
+                    if tmpItem in tmpAnyOf:  # Ignore duplicated items that are nullable
+                        continue
+                    tmpAnyOf.append(item)
+
+                if len(tmpAnyOf) == 1:
+                    result = tmpAnyOf[0]
+                else:
+                    result = {"anyOf": tmpAnyOf}
         if nullable:
             result["nullable"] = True
         return result
@@ -258,6 +284,6 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
             else:
                 return {}
 
-        return convert(schema, custom_serializer=custom_serializer)
+        return ensure_default(convert(schema, custom_serializer=custom_serializer))
 
     raise ValueError("Unable to convert schema: {}".format(schema))
