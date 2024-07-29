@@ -322,7 +322,10 @@ def test_any_of():
         )
     )
 
-    assert {"anyOf": [{"type": "number"}, {"type": "integer"}], "nullable": True} == convert(vol.Any(vol.Maybe(float), vol.Maybe(int)))
+    assert {
+        "anyOf": [{"type": "number"}, {"type": "integer"}],
+        "nullable": True,
+    } == convert(vol.Any(vol.Maybe(float), vol.Maybe(int)))
 
 
 def test_all_of():
