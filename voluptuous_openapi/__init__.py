@@ -69,8 +69,8 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
 
             pval = ensure_default(pval)
 
-            if isinstance(key, vol.Any):
-                for val in key.validators:
+            if isinstance(pkey, vol.Any):
+                for val in pkey.validators:
                     if isinstance(val, vol.Marker):
                         if val.description:
                             properties[str(val.schema)] = pval.copy()
@@ -88,7 +88,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                 if additional_properties is None:
                     additional_properties = pval
 
-            if isinstance(key, vol.Required):
+            if isinstance(key, vol.Required) and not isinstance(pkey, vol.Any):
                 required.append(str(pkey))
 
         val = {"type": "object"}
