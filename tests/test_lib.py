@@ -318,6 +318,24 @@ def test_key_any():
         )
     )
 
+    assert {
+        "properties": {
+            "conversation_command": {"type": "string"},
+            "hours": {"type": "integer"},
+            "minutes": {"type": "integer"},
+            "name": {"type": "string"},
+            "seconds": {"type": "integer"},
+        },
+        "required": [],
+        "type": "object",
+    } == convert(
+        {
+            vol.Required(vol.Any("hours", "minutes", "seconds")): int,
+            vol.Optional("name"): str,
+            vol.Optional("conversation_command"): str,
+        }
+    )
+
 
 def test_function():
     def validator(data):
