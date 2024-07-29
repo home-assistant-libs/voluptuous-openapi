@@ -25,9 +25,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
 
     def ensure_default(value: dict[str:Any]):
         """Make sure that type is set."""
-        if all(
-            x not in value for x in ("type", "enum", "anyOf", "oneOf", "allOf", "not")
-        ):
+        if all(x not in value for x in ("type", "anyOf", "oneOf", "allOf", "not")):
             value["type"] = "string"  # Type not determined, using default
         return value
 
@@ -152,8 +150,16 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
 
     if isinstance(schema, vol.In):
         if isinstance(schema.container, Mapping):
-            return {"enum": list(schema.container.keys())}
-        return {"enum": schema.container}
+            enum_values = list(schema.container.keys())
+        else:
+            enum_values = schema.container
+        # Infer the enum type based on the type of the first value, but default
+        # to a string as a fallback.
+        if enum_values:
+            enum_type = TYPES_MAP.get(type(enum_values[0]), "string")
+        else:
+            enum_type = "string"
+        return {"type": enum_type, "enum": enum_values}
 
     if schema in (vol.Lower, vol.Upper, vol.Capitalize, vol.Title, vol.Strip):
         return {
