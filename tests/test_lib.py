@@ -241,17 +241,39 @@ def test_custom_serializer():
 
 
 def test_constant():
-    for value in True, False, "Hello", 1, None:
-        assert {"enum": [value]} == convert(vol.Schema(value))
-    assert {"enum": [None]} == convert(vol.Schema(type(None)))
+    assert {"type": "boolean", "enum": [True]} == convert(vol.Schema(True))
+    assert {"type": "boolean", "enum": [False]} == convert(vol.Schema(False))
+    assert {"type": "string", "enum": ["Hello"]} == convert(vol.Schema("Hello"))
+    assert {"type": "integer", "enum": [1]} == convert(vol.Schema(1))
+    assert {"type": "number", "enum": [1.5]} == convert(vol.Schema(1.5))
+    assert {
+        "type": "object",
+        "nullable": True,
+        "description": "Must be null",
+    } == convert(vol.Schema(None))
+    assert {
+        "type": "object",
+        "nullable": True,
+        "description": "Must be null",
+    } == convert(vol.Schema(type(None)))
 
 
 def test_enum():
-    class TestEnum(Enum):
+    class StringEnum(Enum):
         ONE = "one"
+        TWO = "two"
+
+    assert {"type": "string", "enum": ["one", "two"]} == convert(
+        vol.Schema(vol.Coerce(StringEnum))
+    )
+
+    class IntEnum(Enum):
+        ONE = 1
         TWO = 2
 
-    assert {"enum": ["one", 2]} == convert(vol.Schema(vol.Coerce(TestEnum)))
+    assert {"type": "integer", "enum": [1, 2]} == convert(
+        vol.Schema(vol.Coerce(IntEnum))
+    )
 
 
 def test_list():
@@ -445,3 +467,7 @@ def test_nested_in_list():
         "required": [],
         "type": "object",
     } == convert(vol.Schema({vol.Optional("drink"): [vol.In(["beer", "wine"])]}))
+
+    assert {"type": "integer", "enum": [1, 2, 3]} == convert(
+        vol.Schema(vol.In([1, 2, 3]))
+    )
