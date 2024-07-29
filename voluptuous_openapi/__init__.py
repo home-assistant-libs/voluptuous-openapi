@@ -207,20 +207,23 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
             anyOf = [
                 convert(val, custom_serializer=custom_serializer) for val in schema
             ]
-            flatAnyOf = []
+
+            # Merge nested anyOf
+            tmpAnyOf = []
             for item in anyOf:
                 if item.get("anyOf"):
-                    flatAnyOf.extend(item["anyOf"])
+                    tmpAnyOf.extend(item["anyOf"])
                     if item.get("nullable"):
                         nullable = True
                 else:
-                    flatAnyOf.append(item)
+                    tmpAnyOf.append(item)
+            anyOf = tmpAnyOf
 
-            if {"type": "object", "additionalProperties": True} in flatAnyOf:
+            if {"type": "object", "additionalProperties": True} in anyOf:
                 result = {"type": "object", "additionalProperties": True}
             else:
                 tmpAnyOf = []
-                for item in flatAnyOf:
+                for item in anyOf:
                     if item in tmpAnyOf:  # Remove duplicated items
                         continue
                     tmpItem = item.copy()
@@ -249,11 +252,12 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                             continue
 
                     tmpAnyOf.append(item)
+                anyOf = tmpAnyOf
 
-                if len(tmpAnyOf) == 1:
-                    result = tmpAnyOf[0]
+                if len(anyOf) == 1:
+                    result = anyOf[0]
                 else:
-                    result = {"anyOf": tmpAnyOf}
+                    result = {"anyOf": anyOf}
         if nullable:
             result["nullable"] = True
         return result
