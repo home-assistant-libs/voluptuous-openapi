@@ -50,17 +50,13 @@ def test_datetime():
 
 
 def test_in():
-    assert {
-        "type": "string",
-        "enum": ["beer", "wine"]
-    } == convert(vol.Schema(vol.In(["beer", "wine"])))
+    assert {"type": "string", "enum": ["beer", "wine"]} == convert(
+        vol.Schema(vol.In(["beer", "wine"]))
+    )
 
 
 def test_in_integer():
-    assert {
-        "type": "integer",
-        "enum": [1, 2]
-    } == convert(vol.Schema(vol.In([1, 2])))
+    assert {"type": "integer", "enum": [1, 2]} == convert(vol.Schema(vol.In([1, 2])))
 
 
 def test_in_dict():
@@ -407,14 +403,9 @@ def test_nested_in_list():
         "properties": {
             "drink": {
                 "type": "array",
-                "items": {
-                    "type": "string",
-                    "enum": ["beer", "wine"]
-                }
+                "items": {"type": "string", "enum": ["beer", "wine"]},
             },
         },
         "required": [],
         "type": "object",
-    } == convert(vol.Schema({
-        vol.Optional("drink"): [vol.In(["beer", "wine"])]
-    }))
+    } == convert(vol.Schema({vol.Optional("drink"): [vol.In(["beer", "wine"])]}))
