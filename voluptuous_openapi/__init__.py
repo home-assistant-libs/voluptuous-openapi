@@ -117,7 +117,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                 or v == {"type": "object", "additionalProperties": True}
             ):
                 continue
-            if v.keys() & val.keys():
+            if any(v[key] != val[key] for key in v.keys() & val.keys()):
                 # Some of the keys are intersecting - fallback to allOf
                 fallback = True
             allOf.append(v)
@@ -165,18 +165,31 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
             enum_values = schema.container
         # Infer the enum type based on the type of the first value, but default
         # to a string as a fallback.
+        nullable = False
+        while None in enum_values:
+            enum_values.remove(None)
+            nullable = True
+        while NoneType in enum_values:
+            enum_values.remove(NoneType)
+            nullable = True
         if enum_values:
             enum_type = TYPES_MAP.get(type(enum_values[0]), "string")
         else:
             enum_type = "string"
+        if nullable:
+            return {"type": enum_type, "enum": enum_values, "nullable": True}
         return {"type": enum_type, "enum": enum_values}
 
-    if schema in (vol.Lower, vol.Upper, vol.Capitalize, vol.Title, vol.Strip):
-        return {
-            "format": schema.__name__.lower(),
-        }
-
-    if schema in (vol.Email, vol.Url, vol.FqdnUrl):
+    if schema in (
+        vol.Lower,
+        vol.Upper,
+        vol.Capitalize,
+        vol.Title,
+        vol.Strip,
+        vol.Email,
+        vol.Url,
+        vol.FqdnUrl,
+    ):
         return {
             "format": schema.__name__.lower(),
         }
@@ -194,6 +207,18 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
             anyOf = [
                 convert(val, custom_serializer=custom_serializer) for val in schema
             ]
+
+            # Merge nested anyOf
+            tmpAnyOf = []
+            for item in anyOf:
+                if item.get("anyOf"):
+                    tmpAnyOf.extend(item["anyOf"])
+                    if item.get("nullable"):
+                        nullable = True
+                else:
+                    tmpAnyOf.append(item)
+            anyOf = tmpAnyOf
+
             if {"type": "object", "additionalProperties": True} in anyOf:
                 result = {"type": "object", "additionalProperties": True}
             else:
@@ -212,12 +237,27 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                     tmpItem["nullable"] = True
                     if tmpItem in tmpAnyOf:  # Ignore duplicated items that are nullable
                         continue
-                    tmpAnyOf.append(item)
+                    if item.get("enum"):
+                        merged = False
+                        for item2 in tmpAnyOf:
+                            if item2.get("enum") and item.get("type") == item2.get(
+                                "type"
+                            ):  # Merge nested enums of the same type
+                                if item.get("nullable"):
+                                    item2["nullable"] = True
+                                item2["enum"] = list(set(item2["enum"] + item["enum"]))
+                                merged = True
+                                break
+                        if merged:
+                            continue
 
-                if len(tmpAnyOf) == 1:
-                    result = tmpAnyOf[0]
+                    tmpAnyOf.append(item)
+                anyOf = tmpAnyOf
+
+                if len(anyOf) == 1:
+                    result = anyOf[0]
                 else:
-                    result = {"anyOf": tmpAnyOf}
+                    result = {"anyOf": anyOf}
         if nullable:
             result["nullable"] = True
         return result
@@ -272,10 +312,19 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
 
         if issubclass(schema, Enum):
             enum_values = list(item.value for item in schema)
+            nullable = False
+            while None in enum_values:
+                enum_values.remove(None)
+                nullable = True
+            while NoneType in enum_values:
+                enum_values.remove(NoneType)
+                nullable = True
             if enum_values:
                 enum_type = TYPES_MAP.get(type(enum_values[0]), "string")
             else:
                 enum_type = "string"
+            if nullable:
+                return {"type": enum_type, "enum": enum_values, "nullable": True}
             return {"type": enum_type, "enum": enum_values}
         elif schema is NoneType:
             return {"type": "object", "nullable": True, "description": "Must be null"}
