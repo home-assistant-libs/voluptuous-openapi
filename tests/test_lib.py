@@ -306,6 +306,22 @@ def test_any_of():
         vol.Any(float, int, object)
     )
 
+    assert {"type": "integer", "nullable": True, "enum": [1, 2]} == convert(
+        vol.Schema(vol.In([1, 2, None]))
+    )
+
+    assert {"type": "integer", "enum": [1, 2, 3]} == convert(
+        vol.Schema(vol.Any(1, 2, 3))
+    )
+
+    assert {
+        "anyOf": [{"type": "number"}, {"type": "integer"}, {"type": "string"}]
+    } == convert(
+        vol.Any(
+            vol.Any(float, int), vol.Any(int, float), vol.Any(float, vol.Any(int, str))
+        )
+    )
+
 
 def test_all_of():
     assert {"allOf": [{"minimum": 5}, {"minimum": 10}]} == convert(
@@ -320,6 +336,13 @@ def test_all_of():
 
     assert {"maximum": 10, "minimum": 5, "type": "number"} == convert(
         vol.All(vol.Range(min=5), vol.Range(max=10))
+    )
+
+    assert {"maximum": 10, "minimum": 5, "type": "number"} == convert(
+        vol.All(
+            vol.All(vol.Range(min=5), float),
+            vol.All(vol.All(vol.Range(max=10), float), float),
+        )
     )
 
 
