@@ -1,10 +1,11 @@
 """Module to convert voluptuous schemas to dictionaries."""
 
 from collections.abc import Callable, Mapping, Sequence
+from inspect import signature
 from enum import Enum
+import re
 from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 from types import NoneType, UnionType
-from inspect import signature
 
 import voluptuous as vol
 
@@ -370,4 +371,56 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
 
         return ensure_default(convert(schema, custom_serializer=custom_serializer))
 
+    raise ValueError("Unable to convert schema: {}".format(schema))
+
+
+
+TYPES_MAP_REV = {v: k for k, v in TYPES_MAP.items()}
+
+
+def convert_to_voluptuous(schema: dict) -> vol.Schema:
+    """Convert an OpenAPI Schema object to a voluptuous schema."""
+
+    if (schema_type := schema.get("type")) is None:
+        raise ValueError("Invalid schema, missing type")
+
+    if (basic_type := TYPES_MAP_REV.get(schema_type)) is not None:
+        if schema_type == "string":
+            if (pattern := schema.get("pattern")) is not None:
+                return vol.Match(re.compile(pattern))
+
+            format = schema.get("format")
+            if format == "date-time":
+                return vol.Datetime()
+
+            min = schema.get("minLength")
+            max = schema.get("maxLength")
+            if min is not None or max is not None:
+                return vol.All(basic_type, vol.Length(min=min, max=max))
+            
+        if schema_type == "integer" or schema_type == "number":
+            min = schema.get("minimum")
+            max = schema.get("maximum")
+            if min is not None or max is not None:
+                return vol.All(basic_type, vol.Range(min=min, max=max))
+
+        return basic_type
+
+    if schema["type"] == "object":
+        properties = {}
+        required_properties = set(schema.get("required", []))
+        for key, value in schema.get("properties", {}).items():
+            value_type = convert_to_voluptuous(value)
+            if key in required_properties:
+                key_type = vol.Required
+            else:
+                key_type = vol.Optional
+            properties[key_type(key)] = value_type
+        if schema.get("additionalProperties") is True:
+            return vol.Schema(properties, extra=vol.ALLOW_EXTRA)
+        return vol.Schema(properties)
+
+    if schema["type"] == "array":
+        return vol.Schema([convert_to_voluptuous(schema["items"])])
+    
     raise ValueError("Unable to convert schema: {}".format(schema))

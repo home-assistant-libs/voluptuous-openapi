@@ -1,9 +1,11 @@
-from enum import Enum
 
-import voluptuous as vol
+from enum import Enum
 from typing import Any, TypeVar
 
-from voluptuous_openapi import UNSUPPORTED, convert
+import pytest
+import voluptuous as vol
+
+from voluptuous_openapi import UNSUPPORTED, convert, convert_to_voluptuous
 
 
 def test_int_schema():
@@ -499,3 +501,40 @@ def test_nested_in_list():
     assert {"type": "integer", "enum": [1, 2, 3]} == convert(
         vol.Schema(vol.In([1, 2, 3]))
     )
+
+
+
+def test_reverse_int_schema():
+    assert convert_to_voluptuous({"type": "integer"}) == int
+
+
+def test_reverse_str_schema():
+    assert convert_to_voluptuous({"type": "string"}) == str
+
+
+def test_reverse_float_schema():
+    assert convert_to_voluptuous({"type": "number"}) == float
+
+
+def test_reverse_bool_schema():
+    assert convert_to_voluptuous({"type": "boolean"}) == bool
+
+
+def test_reverse_datetime():
+    validator = convert_to_voluptuous({
+        "type": "string",
+        "format": "date-time",
+    })
+    validator("2025-01-01T12:32:55.11Z")
+
+    with pytest.raises(vol.Invalid):
+        validator("2021-01-01")
+    with pytest.raises(vol.Invalid):
+        validator("abc")
+
+def test_reverse_unknown_type():
+    with pytest.raises(ValueError):
+        convert_to_voluptuous({})
+
+    with pytest.raises(ValueError):
+        convert_to_voluptuous({"type": "unknown"})
