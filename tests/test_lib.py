@@ -1,4 +1,3 @@
-
 from enum import Enum
 from typing import Any, TypeVar
 
@@ -503,7 +502,6 @@ def test_nested_in_list():
     )
 
 
-
 def test_reverse_int_schema():
     assert convert_to_voluptuous({"type": "integer"}) == int
 
@@ -521,16 +519,19 @@ def test_reverse_bool_schema():
 
 
 def test_reverse_datetime():
-    validator = convert_to_voluptuous({
-        "type": "string",
-        "format": "date-time",
-    })
+    validator = convert_to_voluptuous(
+        {
+            "type": "string",
+            "format": "date-time",
+        }
+    )
     validator("2025-01-01T12:32:55.11Z")
 
     with pytest.raises(vol.Invalid):
         validator("2021-01-01")
     with pytest.raises(vol.Invalid):
         validator("abc")
+
 
 def test_reverse_unknown_type():
     with pytest.raises(ValueError):

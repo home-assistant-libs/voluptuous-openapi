@@ -13,7 +13,7 @@ import datetime
 
 import pytest
 import voluptuous as vol
-import openapi_schema_validator 
+import openapi_schema_validator
 from typing import Any
 import logging
 
@@ -33,17 +33,20 @@ class InvalidFormat(Exception):
 
 def voluptuous_validator(schema: vol.Schema) -> Validator:
     """Create a Validator for a voluptuous schema."""
+
     def validator(data: Any) -> Any:
         try:
             _LOGGER.debug("Validating %s with schema %s", data, schema)
             return schema(data)
         except (vol.Invalid, ValueError) as e:
             raise InvalidFormat(str(e))
+
     return validator
 
 
 def openapi_validator(schema: dict) -> Any:
     """Create a Validator for an OpenAPI schema."""
+
     def validator(data: Any) -> Any:
         try:
             _LOGGER.debug("Validating %s with schema %s", data, schema)
@@ -51,12 +54,17 @@ def openapi_validator(schema: dict) -> Any:
             return data
         except ValidationError as e:
             raise InvalidFormat(str(e))
+
     return validator
+
 
 # Order of id created by `generate_validators`
 TEST_IDS = ["openapi", "voluptuous", "voluptuous_to_openapi", "openapi_to_voluptuous"]
 
-def generate_validators(openapi_schema: dict, voluptuous_schema: vol.Schema) -> Generator[Validator]:
+
+def generate_validators(
+    openapi_schema: dict, voluptuous_schema: vol.Schema
+) -> Generator[Validator]:
     """Create validation functions for the various schema types."""
 
     # Native schema validations
@@ -66,7 +74,6 @@ def generate_validators(openapi_schema: dict, voluptuous_schema: vol.Schema) -> 
     # Converted schema validations
     yield openapi_validator(convert(voluptuous_schema))
     yield voluptuous_validator(convert_to_voluptuous(openapi_schema))
-
 
 
 @pytest.mark.parametrize(
@@ -110,7 +117,6 @@ def test_string_min_max_length(validator: Validator) -> None:
 
     with pytest.raises(InvalidFormat):
         validator("A" * 12)
-
 
 
 @pytest.mark.parametrize(
@@ -203,7 +209,6 @@ def test_float_range(validator: Validator) -> None:
         validator("abc")
 
 
-
 @pytest.mark.parametrize(
     "validator",
     generate_validators(
@@ -220,13 +225,11 @@ def test_match_pattern(validator: Validator) -> None:
     with pytest.raises(InvalidFormat):
         validator("555-1-2020")
 
-
     with pytest.raises(InvalidFormat):
         validator("555")
 
     with pytest.raises(InvalidFormat):
         validator("abc")
-
 
 
 @pytest.mark.parametrize(
@@ -253,7 +256,11 @@ def test_string_list(validator: Validator) -> None:
 @pytest.mark.parametrize(
     "validator",
     generate_validators(
-        {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}, "required": ["id"]},
+        {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}, "name": {"type": "string"}},
+            "required": ["id"],
+        },
         vol.Schema({vol.Required("id"): int, vol.Optional("name"): str}),
     ),
     ids=TEST_IDS,
@@ -276,7 +283,6 @@ def test_object(validator: Validator) -> None:
         validator(123)
 
 
-
 @pytest.mark.parametrize(
     "validator",
     generate_validators(
@@ -289,15 +295,15 @@ def test_object(validator: Validator) -> None:
                     "properties": {
                         "name": {"type": "string"},
                     },
-                }
+                },
             },
         },
-        vol.Schema({
-            vol.Required("id"): int,
-            vol.Optional("content"): vol.Schema({
-                vol.Optional("name"): str
-            }),
-        }),
+        vol.Schema(
+            {
+                vol.Required("id"): int,
+                vol.Optional("content"): vol.Schema({vol.Optional("name"): str}),
+            }
+        ),
     ),
     ids=TEST_IDS,
 )
@@ -314,12 +320,17 @@ def test_nested_object(validator: Validator) -> None:
         validator(123)
 
 
-
 @pytest.mark.parametrize(
     "validator",
     generate_validators(
-        {"type": "object", "properties": {"id": {"type": "integer"}}, "additionalProperties": True},
-        vol.Schema({vol.Required("id"): int, vol.Optional("name"): str}, extra=vol.ALLOW_EXTRA),
+        {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "additionalProperties": True,
+        },
+        vol.Schema(
+            {vol.Required("id"): int, vol.Optional("name"): str}, extra=vol.ALLOW_EXTRA
+        ),
     ),
     ids=TEST_IDS,
 )
@@ -335,7 +346,11 @@ def test_allow_extra(validator: Validator) -> None:
 @pytest.mark.parametrize(
     "validator",
     generate_validators(
-        {"type": "object", "properties": {"id": {"type": "integer"}}, "additionalProperties": False},
+        {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "additionalProperties": False,
+        },
         vol.Schema({vol.Required("id"): int, vol.Optional("name"): str}),
     ),
     ids=TEST_IDS,
@@ -346,7 +361,7 @@ def test_no_extra(validator: Validator) -> None:
 
     # TODO: Note this does not currently fail when converting from openapi to voluptuous because
     # additionalProperties: False is not set. Fix that then uncomment here.
-    #with pytest.raises(InvalidFormat):
+    # with pytest.raises(InvalidFormat):
     #    validator({"id": 1, "extra-key": "hello"})
 
     with pytest.raises(InvalidFormat):
