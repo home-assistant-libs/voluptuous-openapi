@@ -16,6 +16,7 @@ TYPES_MAP = {
     float: "number",
     bool: "boolean",
 }
+TYPES_MAP_REV = {v: k for k, v in TYPES_MAP.items()}
 
 UNSUPPORTED = object()
 
@@ -374,10 +375,6 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
     raise ValueError("Unable to convert schema: {}".format(schema))
 
 
-
-TYPES_MAP_REV = {v: k for k, v in TYPES_MAP.items()}
-
-
 def convert_to_voluptuous(schema: dict) -> vol.Schema:
     """Convert an OpenAPI Schema object to a voluptuous schema."""
 
@@ -397,7 +394,7 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
             max = schema.get("maxLength")
             if min is not None or max is not None:
                 return vol.All(basic_type, vol.Length(min=min, max=max))
-            
+
         if schema_type == "integer" or schema_type == "number":
             min = schema.get("minimum")
             max = schema.get("maximum")
@@ -422,5 +419,5 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
 
     if schema["type"] == "array":
         return vol.Schema([convert_to_voluptuous(schema["items"])])
-    
+
     raise ValueError("Unable to convert schema: {}".format(schema))
