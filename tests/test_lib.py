@@ -539,3 +539,41 @@ def test_reverse_unknown_type():
 
     with pytest.raises(ValueError):
         convert_to_voluptuous({"type": "unknown"})
+
+
+def test_convert_to_voluptuous_wrong_type() -> None:
+    """Test calling with the wrong type"""
+
+    with pytest.raises(ValueError):
+        convert_to_voluptuous({"oneOf": ["integer"]})
+
+    with pytest.raises(ValueError):
+        convert_to_voluptuous({"oneOf": "integer"})
+
+    with pytest.raises(ValueError):
+        convert_to_voluptuous("a")
+
+
+def test_unsupported_features() -> None:
+    """Test converting a mixed aray type."""
+
+    with pytest.raises(ValueError):
+        convert_to_voluptuous({"type": "integer", "multipleOf": 2})
+
+    with pytest.raises(ValueError):
+        convert_to_voluptuous({"type": "array", "items": {"minItems": 1}})
+
+    
+def test_mixed_type_list() -> None:
+    """Test converting a mixed aray type."""
+    validator = convert_to_voluptuous({"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "integer"}]}})
+
+    validator(["a", "b"])
+    validator([1, 2])
+    validator(["a", 1, "b", 2])
+
+    with pytest.raises(vol.Invalid):
+        validator("abc")
+
+    with pytest.raises(vol.Invalid):
+        validator(123)

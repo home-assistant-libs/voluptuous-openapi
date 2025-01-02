@@ -218,7 +218,7 @@ def test_float_range(validator: Validator) -> None:
     ids=TEST_IDS,
 )
 def test_match_pattern(validator: Validator) -> None:
-    """Test date-time openapi schema."""
+    """Test matching a regular expression pattern."""
 
     validator("555-10-2020")
 
@@ -241,7 +241,7 @@ def test_match_pattern(validator: Validator) -> None:
     ids=TEST_IDS,
 )
 def test_string_list(validator: Validator) -> None:
-    """Test date-time openapi schema."""
+    """Test a list of strings."""
 
     validator(["a"])
     validator(["a", "b"])
@@ -251,6 +251,7 @@ def test_string_list(validator: Validator) -> None:
 
     with pytest.raises(InvalidFormat):
         validator(123)
+
 
 
 @pytest.mark.parametrize(
@@ -266,7 +267,7 @@ def test_string_list(validator: Validator) -> None:
     ids=TEST_IDS,
 )
 def test_object(validator: Validator) -> None:
-    """Test date-time openapi schema."""
+    """Test an object."""
     validator({"id": 1, "name": "hello"})
     validator({"id": 1})
 
@@ -308,7 +309,7 @@ def test_object(validator: Validator) -> None:
     ids=TEST_IDS,
 )
 def test_nested_object(validator: Validator) -> None:
-    """Test date-time openapi schema."""
+    """Test an object nested in an object."""
     validator({"id": 1, "content": {"name": "hello"}})
     validator({"id": 1, "content": {}})
     validator({"id": 1})
@@ -335,7 +336,7 @@ def test_nested_object(validator: Validator) -> None:
     ids=TEST_IDS,
 )
 def test_allow_extra(validator: Validator) -> None:
-    """Test date-time openapi schema."""
+    """Test additional properties are allowed."""
     validator({"id": 1})
     validator({"id": 1, "extra-key": "hello"})
 
@@ -356,7 +357,7 @@ def test_allow_extra(validator: Validator) -> None:
     ids=TEST_IDS,
 )
 def test_no_extra(validator: Validator) -> None:
-    """Test date-time openapi schema."""
+    """Test additional properties are not allowed."""
     validator({"id": 1})
 
     # TODO: Note this does not currently fail when converting from openapi to voluptuous because
@@ -366,3 +367,25 @@ def test_no_extra(validator: Validator) -> None:
 
     with pytest.raises(InvalidFormat):
         validator(123)
+
+
+@pytest.mark.parametrize(
+    "validator",
+    generate_validators(
+        {"oneOf": [
+            {"type": "string"},
+            {"type": "integer"}
+        ]},
+        vol.Any(str, int),
+    ),
+    ids=TEST_IDS,
+)
+def test_one_of(validator: Validator) -> None:
+    """Test oneOf multiple types."""
+
+    validator(1)
+    validator(10)
+    validator("hello")
+
+    with pytest.raises(InvalidFormat):
+        validator(1.4)

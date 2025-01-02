@@ -20,6 +20,16 @@ TYPES_MAP_REV = {v: k for k, v in TYPES_MAP.items()}
 
 UNSUPPORTED = object()
 
+# These are not supported when converting from OpenAPI to voluptuous
+OPENAPI_UNSUPPORTED_KEYWORDS = {
+    "anyOf",
+    "allOf",
+    "multipleOf",
+    "minItems",
+    "maxItems",
+    "uniqueItems",
+}
+
 
 def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
     """Convert a voluptuous schema to a OpenAPI Schema object."""
@@ -378,6 +388,18 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
 def convert_to_voluptuous(schema: dict) -> vol.Schema:
     """Convert an OpenAPI Schema object to a voluptuous schema."""
 
+    if not isinstance(schema, dict):
+        raise ValueError("Invalid schema, expected a dictionary")
+
+    for keyword in OPENAPI_UNSUPPORTED_KEYWORDS:
+        if keyword in schema:
+            raise ValueError(f"{keyword} is not supported")
+
+    if (one_of := schema.get("oneOf")) is not None:
+        if not isinstance(one_of, list):
+            raise ValueError("Invalid schema, oneOf should be a list")
+        return vol.Any(*[convert_to_voluptuous(sub_schema) for sub_schema in one_of])
+
     if (schema_type := schema.get("type")) is None:
         raise ValueError("Invalid schema, missing type")
 
@@ -400,7 +422,6 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
             max = schema.get("maximum")
             if min is not None or max is not None:
                 return vol.All(basic_type, vol.Range(min=min, max=max))
-
         return basic_type
 
     if schema["type"] == "object":
