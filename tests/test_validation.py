@@ -253,7 +253,6 @@ def test_string_list(validator: Validator) -> None:
         validator(123)
 
 
-
 @pytest.mark.parametrize(
     "validator",
     generate_validators(
@@ -372,10 +371,7 @@ def test_no_extra(validator: Validator) -> None:
 @pytest.mark.parametrize(
     "validator",
     generate_validators(
-        {"oneOf": [
-            {"type": "string"},
-            {"type": "integer"}
-        ]},
+        {"oneOf": [{"type": "string"}, {"type": "integer"}]},
         vol.Any(str, int),
     ),
     ids=TEST_IDS,

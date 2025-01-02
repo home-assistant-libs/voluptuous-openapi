@@ -563,10 +563,12 @@ def test_unsupported_features() -> None:
     with pytest.raises(ValueError):
         convert_to_voluptuous({"type": "array", "items": {"minItems": 1}})
 
-    
+
 def test_mixed_type_list() -> None:
     """Test converting a mixed aray type."""
-    validator = convert_to_voluptuous({"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "integer"}]}})
+    validator = convert_to_voluptuous(
+        {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "integer"}]}}
+    )
 
     validator(["a", "b"])
     validator([1, 2])
