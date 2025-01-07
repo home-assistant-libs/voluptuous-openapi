@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="voluptuous-openapi",
-    version="0.0.5",
+    version="0.0.6",
     description="Convert voluptuous schemas to OpenAPI Schema object",
     url="https://github.com/home-assistant-libs/voluptuous-openapi",
     author="Denis Shulyaka",
