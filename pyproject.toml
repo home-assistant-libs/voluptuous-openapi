@@ -16,6 +16,3 @@ dependencies = [
 
 [project.urls]
 "Source code" = "https://github.com/home-assistant-libs/voluptuous-openapi"
-
-[tool.setuptools.packages.find]
-include = ["voluptuous_openapi*"]
