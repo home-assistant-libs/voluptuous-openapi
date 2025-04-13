@@ -429,11 +429,14 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
         required_properties = set(schema.get("required", []))
         for key, value in schema.get("properties", {}).items():
             value_type = convert_to_voluptuous(value)
+            description: str | None = None
+            if isinstance(value, dict):
+                description = value.get("description")
             if key in required_properties:
                 key_type = vol.Required
             else:
                 key_type = vol.Optional
-            properties[key_type(key)] = value_type
+            properties[key_type(key, description=description)] = value_type
         if schema.get("additionalProperties") is True:
             return vol.Schema(properties, extra=vol.ALLOW_EXTRA)
         return vol.Schema(properties)

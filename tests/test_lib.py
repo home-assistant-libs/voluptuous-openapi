@@ -579,3 +579,35 @@ def test_mixed_type_list() -> None:
 
     with pytest.raises(vol.Invalid):
         validator(123)
+
+
+@pytest.mark.parametrize(
+    "required",
+    [
+        (["query"]),
+        ([]),
+    ]
+)
+def test_convert_to_voluptuous_marker_description(required: list[str]):
+    schema = convert_to_voluptuous({
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "The query to search for"
+            },
+            "max_results": {
+                "type": "number",
+                "description": "The maximum number of results to return",
+            }
+        },
+        "required": required,
+    })
+    # keys = list(schema.schema.keys())
+    assert [
+        (key, key.description)
+        for key in schema.schema.keys()
+    ] == [
+        ("query", "The query to search for"),
+        ("max_results", "The maximum number of results to return")
+    ]
