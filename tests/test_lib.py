@@ -602,7 +602,6 @@ def test_convert_to_voluptuous_marker_description(required: list[str]):
             "required": required,
         }
     )
-    # keys = list(schema.schema.keys())
     assert [(key, key.description) for key in schema.schema.keys()] == [
         ("query", "The query to search for"),
         ("max_results", "The maximum number of results to return"),
