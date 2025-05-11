@@ -352,7 +352,7 @@ def test_allow_extra(validator: Validator) -> None:
     ids=TEST_IDS,
 )
 def test_none(validator: Validator) -> None:
-    """Test float schema."""
+    """Test null or None values in the schema."""
 
     validator(None)
 
