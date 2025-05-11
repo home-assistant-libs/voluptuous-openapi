@@ -463,7 +463,10 @@ def test_any_of_with_null(validator: Validator) -> None:
     generate_validators(
         {
             "type": "object",
-            "properties": {"id": {"type": "integer"}, "name": {"type": "string", "nullable": True}},
+            "properties": {
+                "id": {"type": "integer"},
+                "name": {"type": "string", "nullable": True},
+            },
             "required": ["id"],
         },
         vol.Schema({vol.Required("id"): int, vol.Optional("name"): str}),

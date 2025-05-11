@@ -415,7 +415,7 @@ def test_function():
     def validator_nullable(data: float | None):
         return data
 
-    assert {'anyOf': [{'type': 'number'}, {'type': 'null'}]} == convert(
+    assert {"anyOf": [{"type": "number"}, {"type": "null"}]} == convert(
         vol.Schema(validator_nullable)
     )
 
