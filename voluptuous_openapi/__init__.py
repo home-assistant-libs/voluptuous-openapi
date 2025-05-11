@@ -32,7 +32,7 @@ OPENAPI_UNSUPPORTED_KEYWORDS = {
 
 class OpenApiVersion(StrEnum):
     """The OpenAPI version.
-    
+
     This is used to change the behavior when converting schemas to OpenAPI.
     """
 
