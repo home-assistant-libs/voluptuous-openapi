@@ -4,7 +4,7 @@ from typing import Any, TypeVar
 import pytest
 import voluptuous as vol
 
-from voluptuous_openapi import UNSUPPORTED, convert, convert_to_voluptuous
+from voluptuous_openapi import UNSUPPORTED, convert, convert_to_voluptuous, OpenApiVersion
 
 
 def test_int_schema():
@@ -221,11 +221,18 @@ def test_fqdnurl():
 
 def test_maybe():
     assert {
+        "type": "string",
+        "nullable": True,
+    } == convert(vol.Schema(vol.Maybe(str)))
+
+
+def test_maybe_v3_1():
+    assert {
         "anyOf": [
             {"type": "null"},
             {"type": "string"},
         ],
-    } == convert(vol.Schema(vol.Maybe(str)))
+    } == convert(vol.Schema(vol.Maybe(str)), openapi_version=OpenApiVersion.V3_1)
 
 
 def test_custom_serializer():
@@ -250,11 +257,21 @@ def test_constant():
     assert {"type": "integer", "enum": [1]} == convert(vol.Schema(1))
     assert {"type": "number", "enum": [1.5]} == convert(vol.Schema(1.5))
     assert {
-        "type": "null",
+        "type": "object",
+        "nullable": True,
+        "description": "Must be null",
     } == convert(vol.Schema(None))
     assert {
-        "type": "null",
+        "type": "object",
+        "nullable": True,
+        "description": "Must be null",
     } == convert(vol.Schema(type(None)))
+    assert {
+        "type": "null",
+    } == convert(vol.Schema(None), openapi_version=OpenApiVersion.V3_1)
+    assert {
+        "type": "null",
+    } == convert(vol.Schema(type(None)), openapi_version=OpenApiVersion.V3_1)
 
 
 def test_enum():
@@ -322,8 +339,12 @@ def test_any_of():
     )
 
     assert {
-        "anyOf": [{"type": "null"}, {"type": "number"}, {"type": "integer"}],
+        "anyOf": [{"type": "number"}, {"type": "integer"}],
+        "nullable": True,
     } == convert(vol.Any(vol.Maybe(float), vol.Maybe(int)))
+    assert {
+        "anyOf": [{"type": "null"}, {"type": "number"}, {"type": "integer"}],
+    } == convert(vol.Any(vol.Maybe(float), vol.Maybe(int)), openapi_version=OpenApiVersion.V3_1)
 
 
 def test_all_of():
@@ -415,8 +436,11 @@ def test_function():
     def validator_nullable(data: float | None):
         return data
 
-    assert {"anyOf": [{"type": "number"}, {"type": "null"}]} == convert(
+    assert {"type": "number", "nullable": True} == convert(
         vol.Schema(validator_nullable)
+    )
+    assert {"anyOf": [{"type": "number"}, {"type": "null"}]} == convert(
+        vol.Schema(validator_nullable), openapi_version=OpenApiVersion.V3_1
     )
 
     def validator_union(data: float | int):

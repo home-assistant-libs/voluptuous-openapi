@@ -17,7 +17,7 @@ import openapi_schema_validator
 from typing import Any
 import logging
 
-from voluptuous_openapi import convert, convert_to_voluptuous
+from voluptuous_openapi import convert, convert_to_voluptuous, OpenApiVersion
 from jsonschema.exceptions import ValidationError
 
 
@@ -71,8 +71,9 @@ def generate_validators(
     yield openapi_validator(openapi_schema)
     yield voluptuous_validator(voluptuous_schema)
 
-    # Converted schema validations
-    yield openapi_validator(convert(voluptuous_schema))
+    # Converted schema validations. We use OpenAPI version 3.1 because it has equivalent
+    # semantics to voluptuous.
+    yield openapi_validator(convert(voluptuous_schema, openapi_version=OpenApiVersion.V3_1))
     yield voluptuous_validator(convert_to_voluptuous(openapi_schema))
 
 
