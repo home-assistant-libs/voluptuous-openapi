@@ -221,8 +221,10 @@ def test_fqdnurl():
 
 def test_maybe():
     assert {
-        "type": "string",
-        "nullable": True,
+        "anyOf": [
+            {"type": "null"},
+            {"type": "string"},
+        ],
     } == convert(vol.Schema(vol.Maybe(str)))
 
 
@@ -248,14 +250,10 @@ def test_constant():
     assert {"type": "integer", "enum": [1]} == convert(vol.Schema(1))
     assert {"type": "number", "enum": [1.5]} == convert(vol.Schema(1.5))
     assert {
-        "type": "object",
-        "nullable": True,
-        "description": "Must be null",
+        "type": "null",
     } == convert(vol.Schema(None))
     assert {
-        "type": "object",
-        "nullable": True,
-        "description": "Must be null",
+        "type": "null",
     } == convert(vol.Schema(type(None)))
 
 
@@ -324,8 +322,7 @@ def test_any_of():
     )
 
     assert {
-        "anyOf": [{"type": "number"}, {"type": "integer"}],
-        "nullable": True,
+        "anyOf": [{"type": "null"}, {"type": "number"}, {"type": "integer"}],
     } == convert(vol.Any(vol.Maybe(float), vol.Maybe(int)))
 
 
@@ -418,7 +415,7 @@ def test_function():
     def validator_nullable(data: float | None):
         return data
 
-    assert {"type": "number", "nullable": True} == convert(
+    assert {'anyOf': [{'type': 'number'}, {'type': 'null'}]} == convert(
         vol.Schema(validator_nullable)
     )
 

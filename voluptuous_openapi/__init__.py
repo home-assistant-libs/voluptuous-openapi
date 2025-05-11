@@ -22,7 +22,6 @@ UNSUPPORTED = object()
 
 # These are not supported when converting from OpenAPI to voluptuous
 OPENAPI_UNSUPPORTED_KEYWORDS = {
-    "anyOf",
     "allOf",
     "multipleOf",
     "minItems",
@@ -208,11 +207,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
 
     if isinstance(schema, vol.Any):
         schema = schema.validators
-        if None in schema or NoneType in schema:
-            schema = [val for val in schema if val is not None and val is not NoneType]
-            nullable = True
-        else:
-            nullable = False
+        nullable = False
         if len(schema) == 1:
             result = convert(schema[0], custom_serializer=custom_serializer)
         else:
@@ -302,7 +297,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
         return {"type": TYPES_MAP[type(schema)], "enum": [schema]}
 
     if schema is None:
-        return {"type": "object", "nullable": True, "description": "Must be null"}
+        return {"type": "null"}
 
     if (
         get_origin(schema) is list
@@ -360,7 +355,7 @@ def convert(schema: Any, *, custom_serializer: Callable | None = None) -> dict:
                 return {"type": enum_type, "enum": enum_values, "nullable": True}
             return {"type": enum_type, "enum": enum_values}
         elif schema is NoneType:
-            return {"type": "object", "nullable": True, "description": "Must be null"}
+            return {"type": "null"}
 
     if schema is object:
         return {"type": "object", "additionalProperties": True}
@@ -398,10 +393,20 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
     if (one_of := schema.get("oneOf")) is not None:
         if not isinstance(one_of, list):
             raise ValueError("Invalid schema, oneOf should be a list")
+        # This implements anyOf semantics sice it matches any of the subschemas,
+        # not just one of them.
         return vol.Any(*[convert_to_voluptuous(sub_schema) for sub_schema in one_of])
+
+    if (any_of := schema.get("anyOf")) is not None:
+        if not isinstance(any_of, list):
+            raise ValueError("Invalid schema, anyOf should be a list")
+        return vol.Any(*[convert_to_voluptuous(sub_schema) for sub_schema in any_of])
 
     if (schema_type := schema.get("type")) is None:
         raise ValueError("Invalid schema, missing type")
+
+    if schema["type"] == "null":
+        return vol.Schema(None)
 
     if (basic_type := TYPES_MAP_REV.get(schema_type)) is not None:
         if schema_type == "string":

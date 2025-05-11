@@ -36,7 +36,7 @@ def voluptuous_validator(schema: vol.Schema) -> Validator:
 
     def validator(data: Any) -> Any:
         try:
-            _LOGGER.debug("Validating %s with schema %s", data, schema)
+            _LOGGER.debug("Validating voluptuous %s with schema %s", data, schema)
             return schema(data)
         except (vol.Invalid, ValueError) as e:
             raise InvalidFormat(str(e))
@@ -49,7 +49,7 @@ def openapi_validator(schema: dict) -> Any:
 
     def validator(data: Any) -> Any:
         try:
-            _LOGGER.debug("Validating %s with schema %s", data, schema)
+            _LOGGER.debug("Validating openai %s with schema %s", data, schema)
             openapi_schema_validator.validate(data, schema)
             return data
         except ValidationError as e:
@@ -346,6 +346,26 @@ def test_allow_extra(validator: Validator) -> None:
 @pytest.mark.parametrize(
     "validator",
     generate_validators(
+        {"type": "null"},
+        vol.Schema(None),
+    ),
+    ids=TEST_IDS,
+)
+def test_none(validator: Validator) -> None:
+    """Test float schema."""
+
+    validator(None)
+
+    with pytest.raises(InvalidFormat):
+        validator("abc")
+
+    with pytest.raises(InvalidFormat):
+        validator(1.0)
+
+
+@pytest.mark.parametrize(
+    "validator",
+    generate_validators(
         {
             "type": "object",
             "properties": {"id": {"type": "integer"}},
@@ -385,3 +405,109 @@ def test_one_of(validator: Validator) -> None:
 
     with pytest.raises(InvalidFormat):
         validator(1.4)
+
+    with pytest.raises(InvalidFormat):
+        validator({"key": "value"})
+
+
+@pytest.mark.parametrize(
+    "validator",
+    generate_validators(
+        {"anyOf": [{"type": "string"}, {"type": "integer"}]},
+        vol.Any(str, int),
+    ),
+    ids=TEST_IDS,
+)
+def test_any_of(validator: Validator) -> None:
+    """Test anyOf multiple types."""
+
+    validator(1)
+    validator(10)
+    validator("hello")
+
+    with pytest.raises(InvalidFormat):
+        validator(1.4)
+
+    with pytest.raises(InvalidFormat):
+        validator({"key": "value"})
+
+
+@pytest.mark.parametrize(
+    "validator",
+    generate_validators(
+        {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        vol.Any(str, None),
+    ),
+    ids=TEST_IDS,
+)
+def test_any_of_with_null(validator: Validator) -> None:
+    """Test anyOf multiple types that includes null."""
+
+    validator("hello")
+    validator("")
+    # 'None' is allowed with type: null in openapi
+    validator(None)
+
+    with pytest.raises(InvalidFormat):
+        validator(1)
+
+    with pytest.raises(InvalidFormat):
+        validator(1.4)
+
+    with pytest.raises(InvalidFormat):
+        validator({"key": "value"})
+
+
+@pytest.mark.parametrize(
+    "validator",
+    generate_validators(
+        {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}, "name": {"type": "string", "nullable": True}},
+            "required": ["id"],
+        },
+        vol.Schema({vol.Required("id"): int, vol.Optional("name"): str}),
+    ),
+    ids=TEST_IDS,
+)
+def test_object_with_nullable(validator: Validator) -> None:
+    """Test an object with a nullable field."""
+
+    validator({"id": 1, "name": "hello"})
+
+    # None is not allowed as a value with 'nullable': True' in openapi
+    with pytest.raises(InvalidFormat):
+        validator({"id": 1, "name": None})
+
+    with pytest.raises(InvalidFormat):
+        validator(1)
+
+    with pytest.raises(InvalidFormat):
+        validator({"name": "hello"})
+
+    with pytest.raises(InvalidFormat):
+        validator({"id": 1, "name": 1})
+
+
+@pytest.mark.parametrize(
+    "validator",
+    generate_validators(
+        {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        vol.Maybe(str),
+    ),
+    ids=TEST_IDS,
+)
+def test_maybe(validator: Validator) -> None:
+    """Test voluptuous Maybe type that allows None."""
+
+    validator("hello")
+    validator(None)
+
+    with pytest.raises(InvalidFormat):
+        validator(1)
+
+    with pytest.raises(InvalidFormat):
+        validator(1.4)
+
+    with pytest.raises(InvalidFormat):
+        validator({"key": "value"})
