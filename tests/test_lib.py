@@ -4,7 +4,12 @@ from typing import Any, TypeVar
 import pytest
 import voluptuous as vol
 
-from voluptuous_openapi import UNSUPPORTED, convert, convert_to_voluptuous, OpenApiVersion
+from voluptuous_openapi import (
+    UNSUPPORTED,
+    convert,
+    convert_to_voluptuous,
+    OpenApiVersion,
+)
 
 
 def test_int_schema():
@@ -344,7 +349,9 @@ def test_any_of():
     } == convert(vol.Any(vol.Maybe(float), vol.Maybe(int)))
     assert {
         "anyOf": [{"type": "null"}, {"type": "number"}, {"type": "integer"}],
-    } == convert(vol.Any(vol.Maybe(float), vol.Maybe(int)), openapi_version=OpenApiVersion.V3_1)
+    } == convert(
+        vol.Any(vol.Maybe(float), vol.Maybe(int)), openapi_version=OpenApiVersion.V3_1
+    )
 
 
 def test_all_of():

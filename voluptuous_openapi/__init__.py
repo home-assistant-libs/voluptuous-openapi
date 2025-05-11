@@ -51,7 +51,9 @@ def convert(
 
     def convert_with_args(schema: Any) -> dict:
         """Convert schema for recusing and propagating arguments."""
-        return convert(schema, custom_serializer=custom_serializer, openapi_version=openapi_version)
+        return convert(
+            schema, custom_serializer=custom_serializer, openapi_version=openapi_version
+        )
 
     def ensure_default(value: dict[str:Any]):
         """Make sure that type is set."""
@@ -228,7 +230,9 @@ def convert(
         schema = schema.validators
         # Infer the enum type based on the type of the first value, but default
         # to a string as a fallback.
-        if (None in schema or NoneType in schema) and openapi_version == OpenApiVersion.V3:
+        if (
+            None in schema or NoneType in schema
+        ) and openapi_version == OpenApiVersion.V3:
             schema = [val for val in schema if val is not None and val is not NoneType]
             nullable = True
         else:
@@ -236,9 +240,7 @@ def convert(
         if len(schema) == 1:
             result = convert_with_args(schema[0])
         else:
-            anyOf = [
-                convert_with_args(val) for val in schema
-            ]
+            anyOf = [convert_with_args(val) for val in schema]
 
             # Merge nested anyOf
             tmpAnyOf = []
@@ -341,9 +343,7 @@ def convert(
             }
         return {
             "type": "array",
-            "items": [
-                ensure_default(convert_with_args(s)) for s in schema.items()
-            ],
+            "items": [ensure_default(convert_with_args(s)) for s in schema.items()],
         }
 
     if schema in TYPES_MAP:

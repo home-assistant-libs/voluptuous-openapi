@@ -73,7 +73,9 @@ def generate_validators(
 
     # Converted schema validations. We use OpenAPI version 3.1 because it has equivalent
     # semantics to voluptuous.
-    yield openapi_validator(convert(voluptuous_schema, openapi_version=OpenApiVersion.V3_1))
+    yield openapi_validator(
+        convert(voluptuous_schema, openapi_version=OpenApiVersion.V3_1)
+    )
     yield voluptuous_validator(convert_to_voluptuous(openapi_schema))
 
 
