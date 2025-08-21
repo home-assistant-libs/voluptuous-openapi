@@ -4,7 +4,7 @@ requires = ["setuptools>=77.0"]
 
 [project]
 name = "voluptuous-openapi"
-version = "0.1.0"
+version = "0.2.0"
 license = "Apache-2.0"
 description = "Convert voluptuous schemas to OpenAPI Schema object"
 readme = "README.md"
