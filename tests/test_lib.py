@@ -634,3 +634,199 @@ def test_convert_to_voluptuous_marker_description(required: list[str]):
         ("query", "The query to search for"),
         ("max_results", "The maximum number of results to return"),
     ]
+
+
+def test_convert_to_voluptuous_nullable_string_openapi_3_0():
+    """Test OpenAPI 3.0 nullable string."""
+    validator = convert_to_voluptuous({"type": "string", "nullable": True})
+    validator("test")
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator(123)
+
+
+def test_convert_to_voluptuous_non_nullable_string_openapi_3_0():
+    """Test OpenAPI 3.0 non-nullable string."""
+    validator_type = convert_to_voluptuous({"type": "string", "nullable": False})
+    # Wrap in a Schema for proper validation
+    validator = vol.Schema(validator_type)
+    validator("test")
+    validator("")  # empty string should be valid
+
+    with pytest.raises(vol.Invalid):
+        validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator(123)
+
+
+def test_convert_to_voluptuous_nullable_integer_openapi_3_0():
+    """Test OpenAPI 3.0 nullable integer."""
+    validator = convert_to_voluptuous({"type": "integer", "nullable": True})
+    validator(42)
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator("string")
+
+
+def test_convert_to_voluptuous_nullable_number_openapi_3_0():
+    """Test OpenAPI 3.0 nullable number."""
+    validator = convert_to_voluptuous({"type": "number", "nullable": True})
+    validator(3.14)
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator("string")
+
+
+def test_convert_to_voluptuous_nullable_boolean_openapi_3_0():
+    """Test OpenAPI 3.0 nullable boolean."""
+    validator = convert_to_voluptuous({"type": "boolean", "nullable": True})
+    validator(True)
+    validator(False)
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator("string")
+
+
+def test_convert_to_voluptuous_nullable_object_openapi_3_0():
+    """Test OpenAPI 3.0 nullable object."""
+    validator = convert_to_voluptuous(
+        {"type": "object", "properties": {"name": {"type": "string"}}, "nullable": True}
+    )
+    validator({"name": "test"})
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator("string")
+
+
+def test_convert_to_voluptuous_nullable_array_openapi_3_0():
+    """Test OpenAPI 3.0 nullable array."""
+    validator = convert_to_voluptuous(
+        {"type": "array", "items": {"type": "string"}, "nullable": True}
+    )
+    validator(["a", "b"])
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator("string")
+
+
+def test_convert_to_voluptuous_nullable_string_openapi_3_1():
+    """Test OpenAPI 3.1 nullable string using type array."""
+    validator = convert_to_voluptuous({"type": ["string", "null"]})
+    validator("test")
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator(123)
+
+
+def test_convert_to_voluptuous_nullable_integer_openapi_3_1():
+    """Test OpenAPI 3.1 nullable integer using type array."""
+    validator = convert_to_voluptuous({"type": ["integer", "null"]})
+    validator(42)
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator("string")
+
+
+def test_convert_to_voluptuous_multiple_types_with_null_openapi_3_1():
+    """Test OpenAPI 3.1 multiple types with null."""
+    validator = convert_to_voluptuous({"type": ["string", "integer", "null"]})
+    validator("test")
+    validator(42)
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator(3.14)
+
+
+def test_convert_to_voluptuous_multiple_types_without_null_openapi_3_1():
+    """Test OpenAPI 3.1 multiple types without null."""
+    validator = convert_to_voluptuous({"type": ["string", "integer"]})
+    validator("test")
+    validator(42)
+
+    with pytest.raises(vol.Invalid):
+        validator(None)
+
+
+def test_convert_to_voluptuous_only_null_openapi_3_1():
+    """Test OpenAPI 3.1 type array with only null."""
+    validator = convert_to_voluptuous({"type": ["null"]})
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator("test")
+
+
+def test_convert_to_voluptuous_nullable_string_with_pattern():
+    """Test nullable string with pattern constraint."""
+    validator = convert_to_voluptuous(
+        {"type": "string", "pattern": r"^test", "nullable": True}
+    )
+    validator("testing")
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator("nottest")
+
+
+def test_convert_to_voluptuous_nullable_integer_with_range_openapi_3_0():
+    """Test nullable integer with range constraint (OpenAPI 3.0 style)."""
+    validator = convert_to_voluptuous(
+        {"type": "integer", "minimum": 1, "maximum": 10, "nullable": True}
+    )
+    validator(5)
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator(15)
+
+
+def test_convert_to_voluptuous_nullable_integer_with_range_openapi_3_1():
+    """Test nullable integer with range constraint (OpenAPI 3.1 style)."""
+    validator = convert_to_voluptuous(
+        {"type": ["integer", "null"], "minimum": 1, "maximum": 10}
+    )
+    validator(5)
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator(15)
+
+
+def test_convert_to_voluptuous_nullable_string_with_length_constraints():
+    """Test nullable string with length constraints."""
+    validator = convert_to_voluptuous(
+        {"type": "string", "minLength": 3, "maxLength": 10, "nullable": True}
+    )
+    validator("hello")
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator("hi")  # too short
+
+    with pytest.raises(vol.Invalid):
+        validator("verylongstring")  # too long
+
+
+def test_convert_to_voluptuous_nullable_number_with_range():
+    """Test nullable number with range constraints."""
+    validator = convert_to_voluptuous(
+        {"type": "number", "minimum": 0.0, "maximum": 100.0, "nullable": True}
+    )
+    validator(50.5)
+    validator(None)
+
+    with pytest.raises(vol.Invalid):
+        validator(-1.0)  # too low
+
+    with pytest.raises(vol.Invalid):
+        validator(101.0)  # too high

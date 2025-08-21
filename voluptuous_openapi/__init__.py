@@ -431,31 +431,53 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
     if (schema_type := schema.get("type")) is None:
         raise ValueError("Invalid schema, missing type")
 
-    if schema["type"] == "null":
+    if schema_type == "null":
         return vol.Schema(None)
 
+    # Handle OpenAPI 3.1 style: type can be an array like ["string", "null"]
+    if isinstance(schema_type, list):
+        if len(schema_type) == 0:
+            raise ValueError("Invalid schema, type array cannot be empty")
+
+        validators = []
+        for t in schema_type:
+            if t == "null":
+                validators.append(None)
+            else:
+                base_schema = schema.copy()
+                base_schema["type"] = t
+                validators.append(convert_to_voluptuous(base_schema))
+        return vol.Any(*validators)
+
     if (basic_type := TYPES_MAP_REV.get(schema_type)) is not None:
+        validator = basic_type
+
         if schema_type == "string":
             if (pattern := schema.get("pattern")) is not None:
-                return vol.Match(re.compile(pattern))
+                validator = vol.Match(re.compile(pattern))
+            elif (format := schema.get("format")) is not None and format == "date-time":
+                validator = vol.Datetime()
+            else:
+                min_length = schema.get("minLength")
+                max_length = schema.get("maxLength")
+                if min_length is not None or max_length is not None:
+                    validator = vol.All(
+                        basic_type, vol.Length(min=min_length, max=max_length)
+                    )
 
-            format = schema.get("format")
-            if format == "date-time":
-                return vol.Datetime()
+        elif schema_type in ("integer", "number"):
+            min_val = schema.get("minimum")
+            max_val = schema.get("maximum")
+            if min_val is not None or max_val is not None:
+                validator = vol.All(basic_type, vol.Range(min=min_val, max=max_val))
 
-            min = schema.get("minLength")
-            max = schema.get("maxLength")
-            if min is not None or max is not None:
-                return vol.All(basic_type, vol.Length(min=min, max=max))
+        # Handle OpenAPI 3.0 nullable property
+        if schema.get("nullable") is True:
+            return vol.Any(validator, None)
 
-        if schema_type == "integer" or schema_type == "number":
-            min = schema.get("minimum")
-            max = schema.get("maximum")
-            if min is not None or max is not None:
-                return vol.All(basic_type, vol.Range(min=min, max=max))
-        return basic_type
+        return validator
 
-    if schema["type"] == "object":
+    if schema_type == "object":
         properties = {}
         required_properties = set(schema.get("required", []))
         for key, value in schema.get("properties", {}).items():
@@ -468,11 +490,26 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
             else:
                 key_type = vol.Optional
             properties[key_type(key, description=description)] = value_type
-        if schema.get("additionalProperties") is True:
-            return vol.Schema(properties, extra=vol.ALLOW_EXTRA)
-        return vol.Schema(properties)
 
-    if schema["type"] == "array":
-        return vol.Schema([convert_to_voluptuous(schema["items"])])
+        validator = None
+        if schema.get("additionalProperties") is True:
+            validator = vol.Schema(properties, extra=vol.ALLOW_EXTRA)
+        else:
+            validator = vol.Schema(properties)
+
+        # Handle OpenAPI 3.0 nullable property
+        if schema.get("nullable") is True:
+            return vol.Any(validator, None)
+
+        return validator
+
+    if schema_type == "array":
+        validator = vol.Schema([convert_to_voluptuous(schema["items"])])
+
+        # Handle OpenAPI 3.0 nullable property
+        if schema.get("nullable") is True:
+            return vol.Any(validator, None)
+
+        return validator
 
     raise ValueError("Unable to convert schema: {}".format(schema))
