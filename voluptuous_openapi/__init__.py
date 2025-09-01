@@ -3,6 +3,7 @@
 from collections.abc import Callable, Mapping, Sequence
 from inspect import signature
 from enum import Enum, StrEnum
+import itertools
 import re
 from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 from types import NoneType, UnionType
@@ -86,6 +87,7 @@ def convert(
     if isinstance(schema, Mapping):
         properties = {}
         required = []
+        any_of_constraint_groups: list[list[str]] = []  # List of lists, each containing candidate keys for a Required(Any(...))
 
         for key, value in schema.items():
             description = None
@@ -99,22 +101,53 @@ def convert(
             if description:
                 pval["description"] = key.description
 
-            if isinstance(key, (vol.Required, vol.Optional)):
+            if isinstance(key, vol.Required):
+                if not isinstance(key.schema, vol.Any):
+                    required.append(str(key.schema))
+                if key.default is not vol.UNDEFINED:
+                    pval["default"] = key.default()
+            elif isinstance(key, vol.Optional):
                 if key.default is not vol.UNDEFINED:
                     pval["default"] = key.default()
 
             pval = ensure_default(pval)
 
             if isinstance(pkey, vol.Any):
-                for val in pkey.validators:
-                    if isinstance(val, vol.Marker):
-                        if val.description:
-                            properties[str(val.schema)] = pval.copy()
-                            properties[str(val.schema)]["description"] = val.description
+                # Handle Required(Any(...)) pattern for anyOf constraints
+                if isinstance(key, vol.Required):
+                    # Extract candidate keys from Any validator
+                    candidate_keys = []
+                    for val_item in pkey.validators:
+                        if isinstance(val_item, vol.Marker):
+                            candidate_keys.append(str(val_item.schema))
                         else:
-                            properties[str(val)] = pval
+                            candidate_keys.append(str(val_item))
+                    
+                    # Check if the value is object (wildcard for presence-only validation)
+                    if value is object:
+                        # For presence-only validation, don't add properties with types
+                        # Just add the constraint group for anyOf generation
+                        any_of_constraint_groups.append(candidate_keys)
                     else:
-                        properties[str(val)] = pval
+                        # Add each candidate key as a property with the specified type
+                        for candidate_key in candidate_keys:
+                            properties[candidate_key] = pval.copy()
+                            if description:
+                                properties[candidate_key]["description"] = description
+                        
+                        # Add this group of candidate keys to our constraint groups
+                        any_of_constraint_groups.append(candidate_keys)
+                else:
+                    # Handle Optional(Any(...)) - expand to individual properties
+                    for val_item in pkey.validators:
+                        if isinstance(val_item, vol.Marker):
+                            if val_item.description:
+                                properties[str(val_item.schema)] = pval.copy()
+                                properties[str(val_item.schema)]["description"] = val_item.description
+                            else:
+                                properties[str(val_item)] = pval
+                        else:
+                            properties[str(val_item)] = pval
             elif isinstance(pkey, str):
                 properties[pkey] = pval
             else:
@@ -124,15 +157,21 @@ def convert(
                 if additional_properties is None:
                     additional_properties = pval
 
-            if isinstance(key, vol.Required) and not isinstance(pkey, vol.Any):
-                required.append(str(pkey))
-
         val = {"type": "object"}
         if properties or not additional_properties:
             val["properties"] = properties
             val["required"] = required
         if additional_properties:
             val["additionalProperties"] = additional_properties
+        
+        # Generate anyOf constraints from the Cartesian product of constraint groups
+        if any_of_constraint_groups:
+            # Generate all combinations (Cartesian product) of the constraint groups
+            val["anyOf"] = [
+                {"required": list(combination)}
+                for combination in itertools.product(*any_of_constraint_groups)
+            ]
+            
         return val
 
     if isinstance(schema, vol.All):
