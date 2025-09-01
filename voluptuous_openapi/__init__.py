@@ -119,14 +119,20 @@ def convert(
                         else:
                             candidate_keys.append(str(val_item))
                     
-                    # Add each candidate key as a property
-                    for candidate_key in candidate_keys:
-                        properties[candidate_key] = pval.copy()
-                        if description:
-                            properties[candidate_key]["description"] = description
-                    
-                    # Add this group of candidate keys to our constraint groups
-                    any_of_constraint_groups.append(candidate_keys)
+                    # Check if the value is object (wildcard for presence-only validation)
+                    if value is object:
+                        # For presence-only validation, don't add properties with types
+                        # Just add the constraint group for anyOf generation
+                        any_of_constraint_groups.append(candidate_keys)
+                    else:
+                        # Add each candidate key as a property with the specified type
+                        for candidate_key in candidate_keys:
+                            properties[candidate_key] = pval.copy()
+                            if description:
+                                properties[candidate_key]["description"] = description
+                        
+                        # Add this group of candidate keys to our constraint groups
+                        any_of_constraint_groups.append(candidate_keys)
                 else:
                     # Handle Optional(Any(...)) - expand to individual properties
                     for val_item in pkey.validators:
