@@ -88,6 +88,7 @@ def convert(
     if isinstance(schema, Mapping):
         properties = {}
         required = []
+        any_of_constraint_groups = []  # List of lists, each containing candidate keys for a Required(Any(...))
 
         for key, value in schema.items():
             description = None
@@ -108,15 +109,35 @@ def convert(
             pval = ensure_default(pval)
 
             if isinstance(pkey, vol.Any):
-                for val in pkey.validators:
-                    if isinstance(val, vol.Marker):
-                        if val.description:
-                            properties[str(val.schema)] = pval.copy()
-                            properties[str(val.schema)]["description"] = val.description
+                # Handle Required(Any(...)) pattern for anyOf constraints
+                if isinstance(key, vol.Required):
+                    # Extract candidate keys from Any validator
+                    candidate_keys = []
+                    for val_item in pkey.validators:
+                        if isinstance(val_item, vol.Marker):
+                            candidate_keys.append(str(val_item.schema))
                         else:
-                            properties[str(val)] = pval
-                    else:
-                        properties[str(val)] = pval
+                            candidate_keys.append(str(val_item))
+                    
+                    # Add each candidate key as a property
+                    for candidate_key in candidate_keys:
+                        properties[candidate_key] = pval.copy()
+                        if description:
+                            properties[candidate_key]["description"] = description
+                    
+                    # Add this group of candidate keys to our constraint groups
+                    any_of_constraint_groups.append(candidate_keys)
+                else:
+                    # Handle Optional(Any(...)) - expand to individual properties
+                    for val_item in pkey.validators:
+                        if isinstance(val_item, vol.Marker):
+                            if val_item.description:
+                                properties[str(val_item.schema)] = pval.copy()
+                                properties[str(val_item.schema)]["description"] = val_item.description
+                            else:
+                                properties[str(val_item)] = pval
+                        else:
+                            properties[str(val_item)] = pval
             elif isinstance(pkey, str):
                 properties[pkey] = pval
             else:
@@ -135,6 +156,17 @@ def convert(
             val["required"] = required
         if additional_properties:
             val["additionalProperties"] = additional_properties
+        
+        # Generate anyOf constraints from the Cartesian product of constraint groups
+        if any_of_constraint_groups:
+            import itertools
+            # Generate all combinations (Cartesian product) of the constraint groups
+            any_of_constraints = []
+            for combination in itertools.product(*any_of_constraint_groups):
+                # Each combination is a tuple with one key from each group
+                any_of_constraints.append({"required": list(combination)})
+            val["anyOf"] = any_of_constraints
+            
         return val
 
     if isinstance(schema, vol.All):
