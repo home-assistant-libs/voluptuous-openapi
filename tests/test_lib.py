@@ -830,3 +830,62 @@ def test_convert_to_voluptuous_nullable_number_with_range():
 
     with pytest.raises(vol.Invalid):
         validator(101.0)  # too high
+
+
+a_task = {"content": "a task ", "description": "a description"}
+
+
+@pytest.mark.parametrize(
+    "min_items, max_items, input_data, should_pass",
+    [
+        # Test with both min_items and max_items
+        (1, 2, {"tasks": []}, False),
+        (1, 2, {"tasks": [a_task]}, True),
+        (1, 2, {"tasks": [a_task, a_task]}, True),
+        (1, 2, {"tasks": [a_task, a_task, a_task]}, False),
+        # Test with only min_items
+        (1, None, {"tasks": []}, False),
+        (1, None, {"tasks": [a_task]}, True),
+        # Test with only max_items
+        (None, 2, {"tasks": [a_task, a_task]}, True),
+        (None, 2, {"tasks": [a_task, a_task, a_task]}, False),
+    ],
+)
+def test_with_min_max_items(min_items, max_items, input_data, should_pass):
+    task_schema = {
+        "type": "object",
+        "properties": {
+            "tasks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "content": {
+                            "type": "string",
+                            "description": "The content of the task to create.",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "The description of the task.",
+                        },
+                    },
+                    "required": ["content"],
+                    "additionalProperties": False,
+                },
+                "minItems": 1,
+            }
+        },
+    }
+
+    if min_items is not None:
+        task_schema["properties"]["tasks"]["minItems"] = min_items
+    if max_items is not None:
+        task_schema["properties"]["tasks"]["maxItems"] = max_items
+
+    validator = convert_to_voluptuous(task_schema)
+
+    if should_pass:
+        validator(input_data)
+    else:
+        with pytest.raises(vol.Invalid):
+            validator(input_data)
