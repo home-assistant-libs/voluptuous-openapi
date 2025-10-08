@@ -449,6 +449,11 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
                 validators.append(convert_to_voluptuous(base_schema))
         return vol.Any(*validators)
 
+    if isinstance(schema_type, list):
+        for schema_type_item in schema_type.copy():
+            if schema_type_item == "null":
+                schema_type.remove(schema_type_item)
+
     if (basic_type := TYPES_MAP_REV.get(schema_type)) is not None:
         validator = basic_type
 

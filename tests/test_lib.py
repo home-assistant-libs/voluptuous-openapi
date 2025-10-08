@@ -830,3 +830,50 @@ def test_convert_to_voluptuous_nullable_number_with_range():
 
     with pytest.raises(vol.Invalid):
         validator(101.0)  # too high
+
+
+def test_convert_to_voluptuous_nullable_string():
+    """Test for the issue with list type in nested properties."""
+    validator = convert_to_voluptuous(
+        {
+            "type": "object",
+            "properties": {
+                "listUuid": {"type": "string", "format": "uuid"},
+                "specification": {"type": ["string", "null"]},
+            },
+            "required": ["listUuid"],
+        }
+    )
+
+    # Test with specification as string
+    validator(
+        {
+            "listUuid": "123e4567-e89b-12d3-a456-426614174000",
+            "specification": "Some specification",
+        }
+    )
+
+    # Test with specification as null
+    validator(
+        {"listUuid": "123e4567-e89b-12d3-a456-426614174000", "specification": None}
+    )
+
+    # Test with empty specification
+    validator({"listUuid": "123e4567-e89b-12d3-a456-426614174000", "specification": ""})
+
+    # Test without specification
+    validator(
+        {
+            "listUuid": "123e4567-e89b-12d3-a456-426614174000",
+        }
+    )
+
+    # Test with invalid specification type
+    with pytest.raises(vol.Invalid):
+        validator(
+            {
+                "listUuid": "123e4567-e89b-12d3-a456-426614174000",
+                "specification": 123,  # Should be string or null
+            }
+        )
+
