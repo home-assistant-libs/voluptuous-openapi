@@ -832,60 +832,67 @@ def test_convert_to_voluptuous_nullable_number_with_range():
         validator(101.0)  # too high
 
 
-a_task = {"content": "a task ", "description": "a description"}
+TEST_TASK_ITEM = {"content": "a task ", "description": "a description"}
+TASK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "tasks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "The content of the task to create.",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "The description of the task.",
+                    },
+                },
+                "required": ["content"],
+                "additionalProperties": False,
+            },
+        }
+    },
+}
 
 
 @pytest.mark.parametrize(
-    "min_items, max_items, input_data, should_pass",
+    "extra_tasks_data, input_data",
     [
-        # Test with both min_items and max_items
-        (1, 2, {"tasks": []}, False),
-        (1, 2, {"tasks": [a_task]}, True),
-        (1, 2, {"tasks": [a_task, a_task]}, True),
-        (1, 2, {"tasks": [a_task, a_task, a_task]}, False),
-        # Test with only min_items
-        (1, None, {"tasks": []}, False),
-        (1, None, {"tasks": [a_task]}, True),
-        # Test with only max_items
-        (None, 2, {"tasks": [a_task, a_task]}, True),
-        (None, 2, {"tasks": [a_task, a_task, a_task]}, False),
+        ({"minItems": 1, "maxItems": 2}, {"tasks": [TEST_TASK_ITEM]}),
+        ({"minItems": 1, "maxItems": 2}, {"tasks": [TEST_TASK_ITEM, TEST_TASK_ITEM]}),
+        ({"minItems": 1}, {"tasks": [TEST_TASK_ITEM]}),
+        ({"maxItems": 2}, {"tasks": [TEST_TASK_ITEM, TEST_TASK_ITEM]}),
     ],
 )
-def test_with_min_max_items(min_items, max_items, input_data, should_pass):
-    task_schema = {
-        "type": "object",
-        "properties": {
-            "tasks": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "content": {
-                            "type": "string",
-                            "description": "The content of the task to create.",
-                        },
-                        "description": {
-                            "type": "string",
-                            "description": "The description of the task.",
-                        },
-                    },
-                    "required": ["content"],
-                    "additionalProperties": False,
-                },
-                "minItems": 1,
-            }
-        },
-    }
-
-    if min_items is not None:
-        task_schema["properties"]["tasks"]["minItems"] = min_items
-    if max_items is not None:
-        task_schema["properties"]["tasks"]["maxItems"] = max_items
+def test_with_min_max_items_success(extra_tasks_data, input_data):
+    task_schema = TASK_SCHEMA.copy()
+    task_schema["properties"]["tasks"].update(extra_tasks_data)
 
     validator = convert_to_voluptuous(task_schema)
 
-    if should_pass:
+    validator(input_data)
+
+
+@pytest.mark.parametrize(
+    "extra_tasks_data, input_data",
+    [
+        ({"minItems": 1, "maxItems": 2}, {"tasks": []}),
+        (
+            {"minItems": 1, "maxItems": 2},
+            {"tasks": [TEST_TASK_ITEM, TEST_TASK_ITEM, TEST_TASK_ITEM]},
+        ),
+        ({"minItems": 1}, {"tasks": []}),
+        ({"maxItems": 2}, {"tasks": [TEST_TASK_ITEM, TEST_TASK_ITEM, TEST_TASK_ITEM]}),
+    ],
+)
+def test_with_min_max_items_fails_validation(extra_tasks_data, input_data):
+    task_schema = TASK_SCHEMA.copy()
+    task_schema["properties"]["tasks"].update(extra_tasks_data)
+
+    validator = convert_to_voluptuous(task_schema)
+
+    with pytest.raises(vol.Invalid):
         validator(input_data)
-    else:
-        with pytest.raises(vol.Invalid):
-            validator(input_data)
