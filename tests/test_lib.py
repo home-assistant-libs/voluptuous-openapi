@@ -830,3 +830,69 @@ def test_convert_to_voluptuous_nullable_number_with_range():
 
     with pytest.raises(vol.Invalid):
         validator(101.0)  # too high
+
+
+TEST_TASK_ITEM = {"content": "a task ", "description": "a description"}
+TASK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "tasks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "The content of the task to create.",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "The description of the task.",
+                    },
+                },
+                "required": ["content"],
+                "additionalProperties": False,
+            },
+        }
+    },
+}
+
+
+@pytest.mark.parametrize(
+    "extra_tasks_data, input_data",
+    [
+        ({"minItems": 1, "maxItems": 2}, {"tasks": [TEST_TASK_ITEM]}),
+        ({"minItems": 1, "maxItems": 2}, {"tasks": [TEST_TASK_ITEM, TEST_TASK_ITEM]}),
+        ({"minItems": 1}, {"tasks": [TEST_TASK_ITEM]}),
+        ({"maxItems": 2}, {"tasks": [TEST_TASK_ITEM, TEST_TASK_ITEM]}),
+    ],
+)
+def test_with_min_max_items_success(extra_tasks_data, input_data):
+    task_schema = TASK_SCHEMA.copy()
+    task_schema["properties"]["tasks"].update(extra_tasks_data)
+
+    validator = convert_to_voluptuous(task_schema)
+
+    validator(input_data)
+
+
+@pytest.mark.parametrize(
+    "extra_tasks_data, input_data",
+    [
+        ({"minItems": 1, "maxItems": 2}, {"tasks": []}),
+        (
+            {"minItems": 1, "maxItems": 2},
+            {"tasks": [TEST_TASK_ITEM, TEST_TASK_ITEM, TEST_TASK_ITEM]},
+        ),
+        ({"minItems": 1}, {"tasks": []}),
+        ({"maxItems": 2}, {"tasks": [TEST_TASK_ITEM, TEST_TASK_ITEM, TEST_TASK_ITEM]}),
+    ],
+)
+def test_with_min_max_items_fails_validation(extra_tasks_data, input_data):
+    task_schema = TASK_SCHEMA.copy()
+    task_schema["properties"]["tasks"].update(extra_tasks_data)
+
+    validator = convert_to_voluptuous(task_schema)
+
+    with pytest.raises(vol.Invalid):
+        validator(input_data)

@@ -94,3 +94,7 @@ pyvenv.cfg
 
 # py.test
 .pytest_cache
+
+# IDEs
+.vscode
+.idea
