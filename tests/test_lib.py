@@ -410,9 +410,14 @@ def test_key_any():
         },
         "required": [],
         "type": "object",
+        "anyOf": [
+            {"required": ["hours"]},
+            {"required": ["minutes"]},
+            {"required": ["seconds"]},
+        ]
     } == convert(
         {
-            vol.Required(vol.Any("hours", "minutes", "seconds")): int,
+            vol.Required(vol.Any("hours", "minutes", "seconds")): object,
             vol.Optional("name"): str,
             vol.Optional("conversation_command"): str,
         }
