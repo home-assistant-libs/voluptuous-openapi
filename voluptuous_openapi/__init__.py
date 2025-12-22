@@ -122,7 +122,7 @@ def convert(
                             candidate_keys.append(str(val_item.schema))
                         else:
                             candidate_keys.append(str(val_item))
-                    
+
                     # Check if the value is object (wildcard for presence-only validation)
                     if value is object:
                         # For presence-only validation, don't add properties with types
@@ -134,7 +134,7 @@ def convert(
                             properties[candidate_key] = pval.copy()
                             if description:
                                 properties[candidate_key]["description"] = description
-                        
+
                         # Add this group of candidate keys to our constraint groups
                         any_of_constraint_groups.append(candidate_keys)
                 else:
@@ -163,7 +163,7 @@ def convert(
             val["required"] = required
         if additional_properties:
             val["additionalProperties"] = additional_properties
-        
+
         # Generate anyOf constraints from the Cartesian product of constraint groups
         if any_of_constraint_groups:
             # Generate all combinations (Cartesian product) of the constraint groups
@@ -171,7 +171,7 @@ def convert(
                 {"required": list(combination)}
                 for combination in itertools.product(*any_of_constraint_groups)
             ]
-            
+
         return val
 
     if isinstance(schema, vol.All):
