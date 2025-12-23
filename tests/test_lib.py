@@ -414,7 +414,7 @@ def test_key_any():
             {"required": ["hours"]},
             {"required": ["minutes"]},
             {"required": ["seconds"]},
-        ]
+        ],
     } == convert(
         {
             vol.Required(vol.Any("hours", "minutes", "seconds")): int,
@@ -903,8 +903,6 @@ def test_with_min_max_items_fails_validation(extra_tasks_data, input_data):
         validator(input_data)
 
 
-
-
 def test_required_any_of():
     """Test schemas with Required(Any(...)) constraints."""
     assert {
@@ -976,4 +974,3 @@ def test_required_any_of():
             vol.Optional("temperature"): int,
         }
     )
-

@@ -87,7 +87,9 @@ def convert(
     if isinstance(schema, Mapping):
         properties = {}
         required = []
-        any_of_constraint_groups: list[list[str]] = []  # List of lists, each containing candidate keys for a Required(Any(...))
+        any_of_constraint_groups: list[list[str]] = (
+            []
+        )  # List of lists, each containing candidate keys for a Required(Any(...))
 
         for key, value in schema.items():
             description = None
@@ -143,7 +145,9 @@ def convert(
                         if isinstance(val_item, vol.Marker):
                             if val_item.description:
                                 properties[str(val_item.schema)] = pval.copy()
-                                properties[str(val_item.schema)]["description"] = val_item.description
+                                properties[str(val_item.schema)][
+                                    "description"
+                                ] = val_item.description
                             else:
                                 properties[str(val_item)] = pval
                         else:
