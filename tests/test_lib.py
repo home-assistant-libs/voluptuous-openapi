@@ -993,3 +993,26 @@ def test_required_any_of_description():
             ): str,
         }
     )
+
+
+def test_required_any_of_inner_description():
+    """Test that inner descriptions are preferred in a Required(Any(...)) constraint."""
+    assert {
+        "properties": {
+            "color": {"type": "string", "description": "Inner color description"},
+            "temperature": {"type": "string", "description": "Outer description"},
+        },
+        "required": [],
+        "type": "object",
+        "anyOf": [{"required": ["color"]}, {"required": ["temperature"]}],
+    } == convert(
+        {
+            vol.Required(
+                vol.Any(
+                    vol.Optional("color", description="Inner color description"),
+                    "temperature",
+                ),
+                description="Outer description",
+            ): str,
+        }
+    )

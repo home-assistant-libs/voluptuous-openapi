@@ -117,28 +117,30 @@ def convert(
             if isinstance(pkey, vol.Any):
                 # Handle Required(Any(...)) pattern for anyOf constraints
                 if isinstance(key, vol.Required):
-                    # Extract candidate keys from Any validator
-                    candidate_keys = []
+                    # Extract candidate keys and their descriptions from Any validator
+                    candidate_items = []
                     for val_item in pkey.validators:
+                        item_key = ""
+                        item_desc = None
                         if isinstance(val_item, vol.Marker):
-                            candidate_keys.append(str(val_item.schema))
+                            item_key = str(val_item.schema)
+                            item_desc = val_item.description
                         else:
-                            candidate_keys.append(str(val_item))
+                            item_key = str(val_item)
+                        candidate_items.append({"key": item_key, "desc": item_desc})
 
-                    # Check if the value is object (wildcard for presence-only validation)
-                    if value is object:
-                        # For presence-only validation, don't add properties with types
-                        # Just add the constraint group for anyOf generation
-                        any_of_constraint_groups.append(candidate_keys)
-                    else:
-                        # Add each candidate key as a property with the specified type
-                        for candidate_key in candidate_keys:
-                            properties[candidate_key] = pval.copy()
-                            if description:
-                                properties[candidate_key]["description"] = description
+                    candidate_keys = [item["key"] for item in candidate_items]
+                    any_of_constraint_groups.append(candidate_keys)
 
-                        # Add this group of candidate keys to our constraint groups
-                        any_of_constraint_groups.append(candidate_keys)
+                    # If the value is not a wildcard, create properties for each
+                    # candidate key, preserving any descriptions.
+                    if value is not object:
+                        for item in candidate_items:
+                            prop_schema = pval.copy()
+                            final_description = item["desc"] or description
+                            if final_description:
+                                prop_schema["description"] = final_description
+                            properties[item["key"]] = prop_schema
                 else:
                     # Handle Optional(Any(...)) - expand to individual properties
                     for val_item in pkey.validators:
