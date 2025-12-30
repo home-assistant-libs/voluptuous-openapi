@@ -576,3 +576,70 @@ def test_maybe(validator: Validator) -> None:
 
     with pytest.raises(InvalidFormat):
         validator({"key": "value"})
+
+
+@pytest.mark.parametrize(
+    "validator",
+    generate_validators(
+        {
+            "type": "object",
+            "properties": {
+                "color": {"type": "string"},
+                "temperature": {"type": "integer"},
+                "brightness": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100,
+                },
+            },
+            "anyOf": [
+                {"required": ["color"]},
+                {"required": ["temperature"]},
+                {"required": ["brightness"]},
+            ],
+        },
+        vol.Schema(
+            {
+                vol.Required(vol.Any("color", "temperature", "brightness")): object,
+                vol.Optional("color"): str,
+                vol.Optional("temperature"): int,
+                vol.Optional("brightness"): vol.All(int, vol.Range(min=0, max=100)),
+            }
+        ),
+    ),
+    ids=TEST_IDS,
+)
+def test_any_of_constraint(validator: Validator) -> None:
+    """Test anyOf constraint for requiring at least one of multiple properties."""
+    # Test valid cases
+    validator({"color": "red"})
+    validator({"temperature": 20})
+    validator({"brightness": 80})
+    validator({"brightness": 0})
+    validator({"brightness": 100})
+    validator({"color": "blue", "temperature": 25})
+    validator({"color": "green", "brightness": 100})
+    validator({"temperature": 22, "brightness": 90})
+    validator({"color": "purple", "temperature": 21, "brightness": 70})
+
+    # Test invalid cases
+    with pytest.raises(InvalidFormat):
+        validator({})  # Missing all required properties
+
+    with pytest.raises(InvalidFormat):
+        validator({"other_field": "value"})  # Missing all required properties
+
+    with pytest.raises(InvalidFormat):
+        validator({"brightness": -1})  # Out of range
+
+    with pytest.raises(InvalidFormat):
+        validator({"brightness": 101})  # Out of range
+
+    with pytest.raises(InvalidFormat):
+        validator({"brightness": "abc"})  # Wrong type
+
+    with pytest.raises(InvalidFormat):
+        validator({"color": 123})  # Wrong type
+
+    with pytest.raises(InvalidFormat):
+        validator({"temperature": "abc"})  # Wrong type

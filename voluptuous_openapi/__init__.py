@@ -467,7 +467,16 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
     if (any_of := schema.get("anyOf")) is not None:
         if not isinstance(any_of, list):
             raise ValueError("Invalid schema, anyOf should be a list")
-        return vol.Any(*[convert_to_voluptuous(sub_schema) for sub_schema in any_of])
+        # If the anyOf is a list of required properties, it's a constraint on an
+        # object and should be handled by the object validator.
+        is_required_constraint = all(
+            list(s.keys()) == ["required"] and isinstance(s["required"], list)
+            for s in any_of
+        )
+        if not (is_required_constraint and schema.get("type") == "object"):
+            return vol.Any(
+                *[convert_to_voluptuous(sub_schema) for sub_schema in any_of]
+            )
 
     if (schema_type := schema.get("type")) is None:
         raise ValueError("Invalid schema, missing type")
@@ -531,6 +540,13 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
             else:
                 key_type = vol.Optional
             properties[key_type(key, description=description)] = value_type
+
+        if (any_of := schema.get("anyOf")) is not None:
+            any_of_keys = [
+                key for sub_schema in any_of for key in sub_schema.get("required", [])
+            ]
+            if any_of_keys:
+                properties[vol.Required(vol.Any(*any_of_keys))] = object
 
         validator = None
         if schema.get("additionalProperties") is True:
