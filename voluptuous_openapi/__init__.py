@@ -545,9 +545,7 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
 
         if (any_of := schema.get("anyOf")) is not None:
             any_of_keys = [
-                key
-                for sub_schema in any_of
-                for key in sub_schema.get("required", [])
+                key for sub_schema in any_of for key in sub_schema.get("required", [])
             ]
             if any_of_keys:
                 properties[vol.Required(vol.Any(*any_of_keys))] = object
