@@ -974,3 +974,22 @@ def test_required_any_of():
             vol.Optional("temperature"): int,
         }
     )
+
+
+def test_required_any_of_description():
+    """Test that the description is preserved in a Required(Any(...)) constraint."""
+    assert {
+        "properties": {
+            "color": {"type": "string", "description": "Light appearance"},
+            "temperature": {"type": "string", "description": "Light appearance"},
+        },
+        "required": [],
+        "type": "object",
+        "anyOf": [{"required": ["color"]}, {"required": ["temperature"]}],
+    } == convert(
+        {
+            vol.Required(
+                vol.Any("color", "temperature"), description="Light appearance"
+            ): str,
+        }
+    )
