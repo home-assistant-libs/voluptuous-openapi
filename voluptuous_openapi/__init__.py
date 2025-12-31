@@ -3,6 +3,7 @@
 from collections.abc import Callable, Mapping, Sequence
 from inspect import signature
 from enum import Enum, StrEnum
+import itertools
 import re
 from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 from types import NoneType, UnionType
@@ -86,6 +87,9 @@ def convert(
     if isinstance(schema, Mapping):
         properties = {}
         required = []
+        any_of_constraint_groups: list[list[str]] = (
+            []
+        )  # List of lists, each containing candidate keys for a Required(Any(...))
 
         for key, value in schema.items():
             description = None
@@ -99,22 +103,57 @@ def convert(
             if description:
                 pval["description"] = key.description
 
-            if isinstance(key, (vol.Required, vol.Optional)):
+            if isinstance(key, vol.Required):
+                if not isinstance(key.schema, vol.Any):
+                    required.append(str(key.schema))
+                if key.default is not vol.UNDEFINED:
+                    pval["default"] = key.default()
+            elif isinstance(key, vol.Optional):
                 if key.default is not vol.UNDEFINED:
                     pval["default"] = key.default()
 
             pval = ensure_default(pval)
 
             if isinstance(pkey, vol.Any):
-                for val in pkey.validators:
-                    if isinstance(val, vol.Marker):
-                        if val.description:
-                            properties[str(val.schema)] = pval.copy()
-                            properties[str(val.schema)]["description"] = val.description
+                # Handle Required(Any(...)) pattern for anyOf constraints
+                if isinstance(key, vol.Required):
+                    # Extract candidate keys and their descriptions from Any validator
+                    candidate_items = []
+                    for val_item in pkey.validators:
+                        item_key = ""
+                        item_desc = None
+                        if isinstance(val_item, vol.Marker):
+                            item_key = str(val_item.schema)
+                            item_desc = val_item.description
                         else:
-                            properties[str(val)] = pval
-                    else:
-                        properties[str(val)] = pval
+                            item_key = str(val_item)
+                        candidate_items.append({"key": item_key, "desc": item_desc})
+
+                    candidate_keys = [item["key"] for item in candidate_items]
+                    any_of_constraint_groups.append(candidate_keys)
+
+                    # If the value is not a wildcard, create properties for each
+                    # candidate key, preserving any descriptions.
+                    if value is not object:
+                        for item in candidate_items:
+                            prop_schema = pval.copy()
+                            final_description = item["desc"] or description
+                            if final_description:
+                                prop_schema["description"] = final_description
+                            properties[item["key"]] = prop_schema
+                else:
+                    # Handle Optional(Any(...)) - expand to individual properties
+                    for val_item in pkey.validators:
+                        if isinstance(val_item, vol.Marker):
+                            if val_item.description:
+                                properties[str(val_item.schema)] = pval.copy()
+                                properties[str(val_item.schema)][
+                                    "description"
+                                ] = val_item.description
+                            else:
+                                properties[str(val_item)] = pval
+                        else:
+                            properties[str(val_item)] = pval
             elif isinstance(pkey, str):
                 properties[pkey] = pval
             else:
@@ -124,15 +163,21 @@ def convert(
                 if additional_properties is None:
                     additional_properties = pval
 
-            if isinstance(key, vol.Required) and not isinstance(pkey, vol.Any):
-                required.append(str(pkey))
-
         val = {"type": "object"}
         if properties or not additional_properties:
             val["properties"] = properties
             val["required"] = required
         if additional_properties:
             val["additionalProperties"] = additional_properties
+
+        # Generate anyOf constraints from the Cartesian product of constraint groups
+        if any_of_constraint_groups:
+            # Generate all combinations (Cartesian product) of the constraint groups
+            val["anyOf"] = [
+                {"required": list(combination)}
+                for combination in itertools.product(*any_of_constraint_groups)
+            ]
+
         return val
 
     if isinstance(schema, vol.All):
@@ -424,7 +469,16 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
     if (any_of := schema.get("anyOf")) is not None:
         if not isinstance(any_of, list):
             raise ValueError("Invalid schema, anyOf should be a list")
-        return vol.Any(*[convert_to_voluptuous(sub_schema) for sub_schema in any_of])
+        # If the anyOf is a list of required properties, it's a constraint on an
+        # object and should be handled by the object validator.
+        is_required_constraint = all(
+            list(s.keys()) == ["required"] and isinstance(s["required"], list)
+            for s in any_of
+        )
+        if not (is_required_constraint and schema.get("type") == "object"):
+            return vol.Any(
+                *[convert_to_voluptuous(sub_schema) for sub_schema in any_of]
+            )
 
     if (schema_type := schema.get("type")) is None:
         raise ValueError("Invalid schema, missing type")
@@ -488,6 +542,13 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
             else:
                 key_type = vol.Optional
             properties[key_type(key, description=description)] = value_type
+
+        if (any_of := schema.get("anyOf")) is not None:
+            any_of_keys = [
+                key for sub_schema in any_of for key in sub_schema.get("required", [])
+            ]
+            if any_of_keys:
+                properties[vol.Required(vol.Any(*any_of_keys))] = object
 
         validator = None
         if schema.get("additionalProperties") is True:
