@@ -1,4 +1,4 @@
 pytest==8.4.2
 flake8==7.3.0
-black==25.11.0
+black==25.12.0
 openapi-schema-validator==0.6.3
