@@ -42,7 +42,7 @@ You can pass a custom serializer to be able to process custom validators. If the
 
 ```python
 
-from voluptuous_openai import UNSUPPORTED, convert
+from voluptuous_openapi import UNSUPPORTED, convert
 
 def custom_convert(value):
     if value is my_custom_validator:
