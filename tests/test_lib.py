@@ -1315,3 +1315,133 @@ def test_anonymized_ghp_home_automation_invalid() -> None:
     }
     with pytest.raises(vol.Invalid):
         validator(invalid_automation)
+
+
+def test_convert_schema_with_reference() -> None:
+    """Test that converting a voluptuous schema containing a reference back to OpenAPI works."""
+    schema = {
+        "$defs": {
+            "PositiveInteger": {
+                "type": "integer",
+                "minimum": 0,
+            }
+        },
+        "type": "object",
+        "properties": {
+            "value": {"$ref": "#/$defs/PositiveInteger"},
+        },
+    }
+    vol_schema = convert_to_voluptuous(schema)
+
+    # Verify that the returned vol_schema validates correctly
+    assert vol_schema({"value": 42}) == {"value": 42}
+    with pytest.raises(vol.Invalid):
+        vol_schema({"value": -5})
+
+    # Verify that convert() successfully serializes the voluptuous schema
+    # and denormalizes the reference.
+    res = convert(vol_schema)
+    assert res == {
+        "type": "object",
+        "properties": {
+            "value": {"type": "integer", "minimum": 0},
+        },
+        "required": [],
+    }
+
+
+def test_convert_schema_with_nested_reference() -> None:
+    """Test that converting a voluptuous schema containing a nested reference back to OpenAPI works."""
+    schema = {
+        "$defs": {
+            "PositiveInteger": {
+                "type": "integer",
+                "minimum": 0,
+            }
+        },
+        "type": "object",
+        "properties": {
+            "nested": {
+                "type": "object",
+                "properties": {
+                    "value": {"$ref": "#/$defs/PositiveInteger"},
+                },
+            }
+        },
+    }
+    vol_schema = convert_to_voluptuous(schema)
+
+    # Verify that the returned vol_schema validates correctly
+    assert vol_schema({"nested": {"value": 42}}) == {"nested": {"value": 42}}
+    with pytest.raises(vol.Invalid):
+        vol_schema({"nested": {"value": -5}})
+
+    # Verify that convert() successfully serializes the voluptuous schema and denormalizes the nested reference.
+    res = convert(vol_schema)
+    assert res == {
+        "type": "object",
+        "properties": {
+            "nested": {
+                "type": "object",
+                "properties": {
+                    "value": {"type": "integer", "minimum": 0},
+                },
+                "required": [],
+            }
+        },
+        "required": [],
+    }
+
+
+def test_convert_recursive_schema() -> None:
+    """Test that converting a voluptuous schema containing a recursive reference back to OpenAPI works."""
+    schema = {
+        "$defs": {
+            "Node": {
+                "type": "object",
+                "properties": {
+                    "value": {"type": "string"},
+                    "child": {"$ref": "#/$defs/Node"},
+                },
+            }
+        },
+        "$ref": "#/$defs/Node",
+    }
+    vol_schema = convert_to_voluptuous(schema)
+
+    # Verify that the returned vol_schema validates correctly
+    valid_data = {"value": "root", "child": {"value": "child"}}
+    assert vol_schema(valid_data) == valid_data
+
+    # Verify that convert() successfully serializes the voluptuous schema,
+    # denormalizes the reference, and breaks the cycle at "child".
+    res = convert(vol_schema)
+    assert res == {
+        "type": "object",
+        "properties": {
+            "value": {"type": "string"},
+            "child": {"type": "string"},
+        },
+        "required": [],
+    }
+
+
+def test_convert_custom_callable_class_instance() -> None:
+    """Test that convert() handles custom callable validator instances."""
+
+    class CustomValidator:
+        def __call__(self, value: int) -> int:
+            if value < 0:
+                raise vol.Invalid("Must be positive")
+            return value
+
+    vol_schema = vol.Schema(CustomValidator())
+
+    # Verify native validation works
+    assert vol_schema(42) == 42
+    with pytest.raises(vol.Invalid):
+        vol_schema(-5)
+
+    # Verify serialization extracts the type hint from __call__ parameter
+    res = convert(vol_schema)
+    assert res == {"type": "integer"}

@@ -1,7 +1,7 @@
 """Module to convert voluptuous schemas to dictionaries."""
 
 from collections.abc import Callable, Mapping, Sequence
-from inspect import signature
+from inspect import isroutine, signature
 from enum import Enum, StrEnum
 import itertools
 import re
@@ -47,6 +47,7 @@ def convert(
     *,
     custom_serializer: Callable | None = None,
     openapi_version: OpenApiVersion = OpenApiVersion.V3,
+    _seen_refs: set[str] | None = None,
 ) -> dict:
     """Convert a voluptuous schema to a OpenAPI Schema object."""
     # pylint: disable=too-many-return-statements,too-many-branches
@@ -54,8 +55,27 @@ def convert(
     def convert_with_args(schema: Any) -> dict:
         """Convert schema for recusing and propagating arguments."""
         return convert(
-            schema, custom_serializer=custom_serializer, openapi_version=openapi_version
+            schema,
+            custom_serializer=custom_serializer,
+            openapi_version=openapi_version,
+            _seen_refs=_seen_refs,
         )
+
+    if isinstance(schema, LazySchema):
+        # Recursively resolve and denormalize references. We track visited references
+        # in _seen_refs to detect cycle/recursion loops. If a cycle is detected, we
+        # break it by returning {} (representing Any).
+        if _seen_refs is None:
+            _seen_refs = set()
+        if schema.ref in _seen_refs:
+            return {}
+        _seen_refs.add(schema.ref)
+        try:
+            target_schema = resolve_ref(schema.ref, schema.root_schema)
+            vol_target = convert_to_voluptuous(target_schema, schema.root_schema)
+            return convert_with_args(vol_target)
+        finally:
+            _seen_refs.remove(schema.ref)
 
     def ensure_default(value: dict[str:Any]):
         """Make sure that type is set."""
@@ -433,9 +453,16 @@ def convert(
         return {"type": "object", "additionalProperties": True}
 
     if callable(schema):
-        schema = get_type_hints(schema).get(
-            list(signature(schema).parameters.keys())[0], Any
-        )
+        if isinstance(schema, type) or isroutine(schema):
+            hints = get_type_hints(schema)
+        else:
+            # For custom callable class instances (such as LazySchema), we inspect
+            # the __call__ method instead. We cannot fully serialize arbitrary Python
+            # callables back to OpenAPI, but we can try to extract the type annotation
+            # of their first parameter to preserve type information in the generated schema.
+            hints = get_type_hints(schema.__call__)
+        params = list(signature(schema).parameters.keys())
+        schema = hints.get(params[0], Any) if params else Any
         if schema is Any or isinstance(schema, TypeVar):
             return {}
         if isinstance(schema, UnionType) or get_origin(schema) is Union:
@@ -499,6 +526,14 @@ class LazySchema:
     By returning a LazySchema instance during compilation, we avoid infinite
     recursion/loops for circular or self-referential schemas. The schema is
     resolved and compiled only on its first invocation, and cached for future runs.
+
+    Serialization Round-Trip Caveats:
+    When converting a voluptuous schema containing a LazySchema back to an OpenAPI
+    schema:
+    1. Non-recursive references are fully denormalized (resolved and expanded).
+    2. Recursive/circular references are broken at the recursion boundary and return
+       an empty schema {} (representing Any, which is defaulted to a string type by
+       the library's ensure_default helper) to prevent infinite recursion/loops.
     """
 
     def __init__(self, ref: str, root_schema: dict):
@@ -524,6 +559,9 @@ class LazySchema:
         if not isinstance(other, LazySchema):
             return False
         return self.ref == other.ref and self.root_schema == other.root_schema
+
+    def __hash__(self) -> int:
+        return hash(self.ref)
 
     def __repr__(self) -> str:
         return f"LazySchema({self.ref!r})"
