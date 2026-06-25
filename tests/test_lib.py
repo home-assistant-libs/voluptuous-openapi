@@ -1016,3 +1016,302 @@ def test_required_any_of_inner_description():
             ): str,
         }
     )
+
+
+def test_simple_ref_defs() -> None:
+    """Test basic JSON pointer reference resolution using the $defs keyword."""
+    schema = {
+        "$defs": {"MyInt": {"type": "integer"}},
+        "type": "object",
+        "properties": {"age": {"$ref": "#/$defs/MyInt"}},
+    }
+    validator = convert_to_voluptuous(schema)
+    # Check it validates valid input
+    res = validator({"age": 42})
+    assert res == {"age": 42}
+
+    # Check it raises vol.Invalid on invalid input
+    with pytest.raises(vol.Invalid):
+        validator({"age": "hello"})
+
+
+def test_definitions_compatibility() -> None:
+    """Test compatibility with older JSON Schema drafts using definitions instead of $defs."""
+    schema = {
+        "definitions": {"MyInt": {"type": "integer"}},
+        "type": "object",
+        "properties": {"age": {"$ref": "#/definitions/MyInt"}},
+    }
+    validator = convert_to_voluptuous(schema)
+    res = validator({"age": 42})
+    assert res == {"age": 42}
+
+    with pytest.raises(vol.Invalid):
+        validator({"age": "not-an-int"})
+
+
+def test_chained_refs() -> None:
+    """Test chained references where one reference points to another reference."""
+    schema = {
+        "$defs": {"Level2": {"type": "integer"}, "Level1": {"$ref": "#/$defs/Level2"}},
+        "type": "object",
+        "properties": {"num": {"$ref": "#/$defs/Level1"}},
+    }
+    validator = convert_to_voluptuous(schema)
+    res = validator({"num": 42})
+    assert res == {"num": 42}
+
+    with pytest.raises(vol.Invalid):
+        validator({"num": "yes"})
+
+
+def test_root_self_ref_valid() -> None:
+    """Test root self-reference (#) with valid recursively nested structures."""
+    schema = {"type": "object", "properties": {"child": {"$ref": "#"}}}
+    validator = convert_to_voluptuous(schema)
+
+    # Single level
+    assert validator({"child": {}}) == {"child": {}}
+
+    # Nested level
+    assert validator({"child": {"child": {"child": {}}}}) == {
+        "child": {"child": {"child": {}}}
+    }
+
+
+def test_root_self_ref_invalid() -> None:
+    """Test root self-reference (#) with invalid type values."""
+    schema = {"type": "object", "properties": {"child": {"$ref": "#"}}}
+    validator = convert_to_voluptuous(schema)
+
+    with pytest.raises(vol.Invalid):
+        validator({"child": "not-an-object"})
+
+
+def test_recursive_tree_valid() -> None:
+    """Test recursive tree node reference validation with valid structures."""
+    schema = {
+        "$defs": {
+            "Node": {
+                "type": "object",
+                "properties": {
+                    "value": {"type": "string"},
+                    "children": {"type": "array", "items": {"$ref": "#/$defs/Node"}},
+                },
+                "required": ["value"],
+            }
+        },
+        "$ref": "#/$defs/Node",
+    }
+    validator = convert_to_voluptuous(schema)
+
+    # Leaf node
+    assert validator({"value": "leaf"}) == {"value": "leaf"}
+
+    # Deep recursive tree
+    tree = {
+        "value": "root",
+        "children": [
+            {"value": "child1", "children": [{"value": "grandchild1"}]},
+            {"value": "child2"},
+        ],
+    }
+    assert validator(tree) == tree
+
+
+def test_recursive_tree_invalid() -> None:
+    """Test recursive tree node reference validation with invalid type values."""
+    schema = {
+        "$defs": {
+            "Node": {
+                "type": "object",
+                "properties": {
+                    "value": {"type": "string"},
+                    "children": {"type": "array", "items": {"$ref": "#/$defs/Node"}},
+                },
+                "required": ["value"],
+            }
+        },
+        "$ref": "#/$defs/Node",
+    }
+    validator = convert_to_voluptuous(schema)
+
+    invalid_tree = {"value": "root", "children": [{"value": 123}]}  # Should be string
+    with pytest.raises(vol.Invalid):
+        validator(invalid_tree)
+
+
+def test_anonymized_field_definition_valid() -> None:
+    """Test anonymized FieldDefinition schema with valid primitive and complex structures."""
+    schema = {
+        "$defs": {
+            "FieldDefinition": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["BOOLEAN", "STRING", "INTEGER", "STRUCT", "LIST"],
+                    },
+                    "structFields": {
+                        "type": "object",
+                        "additionalProperties": {"$ref": "#/$defs/FieldDefinition"},
+                    },
+                    "listElement": {"$ref": "#/$defs/FieldDefinition"},
+                },
+                "required": ["type"],
+            }
+        },
+        "$ref": "#/$defs/FieldDefinition",
+    }
+    validator = convert_to_voluptuous(schema)
+
+    # Simple integer type definition
+    assert validator({"type": "INTEGER"}) == {"type": "INTEGER"}
+
+    # Complex struct containing other field definitions (including a list element)
+    complex_def = {
+        "type": "STRUCT",
+        "structFields": {
+            "name": {"type": "STRING"},
+            "tags": {"type": "LIST", "listElement": {"type": "STRING"}},
+        },
+    }
+    assert validator(complex_def) == complex_def
+
+
+def test_anonymized_field_definition_invalid() -> None:
+    """Test anonymized FieldDefinition schema with invalid enum values and recursive types."""
+    schema = {
+        "$defs": {
+            "FieldDefinition": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["BOOLEAN", "STRING", "INTEGER", "STRUCT", "LIST"],
+                    },
+                    "structFields": {
+                        "type": "object",
+                        "additionalProperties": {"$ref": "#/$defs/FieldDefinition"},
+                    },
+                    "listElement": {"$ref": "#/$defs/FieldDefinition"},
+                },
+                "required": ["type"],
+            }
+        },
+        "$ref": "#/$defs/FieldDefinition",
+    }
+    validator = convert_to_voluptuous(schema)
+
+    # Fails if enum value is wrong
+    with pytest.raises(vol.Invalid):
+        validator({"type": "FLOAT"})
+
+    # Fails if recursive validation fails
+    with pytest.raises(vol.Invalid):
+        validator(
+            {
+                "type": "STRUCT",
+                "structFields": {"invalid_field": {"type": 123}},  # type must be string
+            }
+        )
+
+
+def test_anonymized_ghp_home_automation_valid() -> None:
+    """Test anonymized GhpHomeAutomation schema with valid automation rules."""
+    schema = {
+        "$defs": {
+            "Comparison": {
+                "type": "object",
+                "properties": {
+                    "fieldToCompare": {"type": "string"},
+                    "operator": {"type": "string", "enum": ["EQUALS", "LESS_THAN"]},
+                    "nestedComparison": {"$ref": "#/$defs/Comparison"},
+                    "operands": {"type": "array", "items": {"$ref": "#/$defs/Operand"}},
+                },
+            },
+            "Operand": {
+                "type": "object",
+                "properties": {
+                    "comparison": {"$ref": "#/$defs/Comparison"},
+                    "value": {"type": "string"},
+                },
+            },
+            "ConditionBlock": {
+                "type": "object",
+                "properties": {
+                    "comparison": {"$ref": "#/$defs/Comparison"},
+                    "description": {"type": "string"},
+                },
+            },
+        },
+        "type": "object",
+        "properties": {
+            "conditions": {"type": "array", "items": {"$ref": "#/$defs/ConditionBlock"}}
+        },
+    }
+    validator = convert_to_voluptuous(schema)
+
+    valid_automation = {
+        "conditions": [
+            {
+                "description": "Check temperature",
+                "comparison": {
+                    "fieldToCompare": "temp",
+                    "operator": "LESS_THAN",
+                    "operands": [{"value": "72"}],
+                },
+            }
+        ]
+    }
+    assert validator(valid_automation) == valid_automation
+
+
+def test_anonymized_ghp_home_automation_invalid() -> None:
+    """Test anonymized GhpHomeAutomation schema with invalid operator constraints."""
+    schema = {
+        "$defs": {
+            "Comparison": {
+                "type": "object",
+                "properties": {
+                    "fieldToCompare": {"type": "string"},
+                    "operator": {"type": "string", "enum": ["EQUALS", "LESS_THAN"]},
+                    "nestedComparison": {"$ref": "#/$defs/Comparison"},
+                    "operands": {"type": "array", "items": {"$ref": "#/$defs/Operand"}},
+                },
+            },
+            "Operand": {
+                "type": "object",
+                "properties": {
+                    "comparison": {"$ref": "#/$defs/Comparison"},
+                    "value": {"type": "string"},
+                },
+            },
+            "ConditionBlock": {
+                "type": "object",
+                "properties": {
+                    "comparison": {"$ref": "#/$defs/Comparison"},
+                    "description": {"type": "string"},
+                },
+            },
+        },
+        "type": "object",
+        "properties": {
+            "conditions": {"type": "array", "items": {"$ref": "#/$defs/ConditionBlock"}}
+        },
+    }
+    validator = convert_to_voluptuous(schema)
+
+    # Invalid operator in nested comparison
+    invalid_automation = {
+        "conditions": [
+            {
+                "comparison": {
+                    "fieldToCompare": "temp",
+                    "operator": "GREATER_THAN",  # Not in comparison enum ["EQUALS", "LESS_THAN"]
+                }
+            }
+        ]
+    }
+    with pytest.raises(vol.Invalid):
+        validator(invalid_automation)

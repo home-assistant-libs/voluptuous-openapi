@@ -28,6 +28,9 @@ OPENAPI_UNSUPPORTED_KEYWORDS = {
     "uniqueItems",
 }
 
+# The standard JSON Schema reference keyword
+JSON_SCHEMA_REF = "$ref"
+
 
 class OpenApiVersion(StrEnum):
     """The OpenAPI version.
@@ -449,11 +452,111 @@ def convert(
     raise ValueError("Unable to convert schema: {}".format(schema))
 
 
-def convert_to_voluptuous(schema: dict) -> vol.Schema:
-    """Convert an OpenAPI Schema object to a voluptuous schema."""
+def resolve_ref(ref: str, root_schema: dict) -> dict:
+    """Resolve a JSON pointer reference within the root_schema.
+
+    A JSON pointer (defined in RFC 6901) is a string syntax for identifying a
+    specific value within a JSON document. It uses '/' to separate keys or list
+    indices. This function resolves local pointer references starting with '#'.
+
+    Example:
+        Given root_schema = {"$defs": {"User": {"type": "object"}}},
+        resolve_ref("#/$defs/User", root_schema) returns {"type": "object"}.
+    """
+    if not ref.startswith("#"):
+        raise ValueError(f"External/relative $ref not supported: {ref}")
+    if ref == "#" or ref == "":
+        return root_schema
+
+    parts = ref.lstrip("#").split("/")
+    # If the ref was '#/something', lstrip('#') is '/something', and split('/')
+    # produces ['', 'something']. We pop the first empty element.
+    if parts[0] == "":
+        parts.pop(0)
+
+    current = root_schema
+    for part in parts:
+        # RFC 6901 specifies '~1' represents '/' and '~0' represents '~'
+        part = part.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        elif isinstance(current, list):
+            try:
+                idx = int(part)
+                current = current[idx]
+            except (ValueError, IndexError):
+                raise ValueError(f"Could not resolve ref {ref} in list at index {part}")
+        else:
+            raise ValueError(f"Could not resolve ref {ref} at key {part}")
+
+    return current
+
+
+class LazySchema:
+    """A wrapper validator that resolves and compiles a schema reference lazily.
+
+    This leverages voluptuous's ability to use any Python callable as a validator.
+    By returning a LazySchema instance during compilation, we avoid infinite
+    recursion/loops for circular or self-referential schemas. The schema is
+    resolved and compiled only on its first invocation, and cached for future runs.
+    """
+
+    def __init__(self, ref: str, root_schema: dict):
+        self.ref = ref
+        self.root_schema = root_schema
+        self._compiled_schema = None
+
+    def __call__(self, value: Any) -> Any:
+        """Validate the value against the lazily compiled schema.
+
+        On the first validation call, this resolves the JSON pointer reference
+        and compiles it into a voluptuous validator. Subsequent validation calls
+        bypass the compilation and reuse the cached validator.
+        """
+        if self._compiled_schema is None:
+            target_schema = resolve_ref(self.ref, self.root_schema)
+            self._compiled_schema = convert_to_voluptuous(
+                target_schema, self.root_schema
+            )
+        return self._compiled_schema(value)
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, LazySchema):
+            return False
+        return self.ref == other.ref and self.root_schema == other.root_schema
+
+    def __repr__(self) -> str:
+        return f"LazySchema({self.ref!r})"
+
+
+def convert_to_voluptuous(schema: dict, root_schema: dict | None = None) -> Any:
+    """Convert an OpenAPI/JSON Schema object to a voluptuous schema.
+
+    Args:
+        schema: The OpenAPI/JSON Schema dictionary to convert.
+        root_schema: The root schema document, which is propagated recursively
+            to resolve local JSON pointer references ($ref). If not provided,
+            defaults to the current schema.
+
+    Returns:
+        A voluptuous Schema, a type validator, or a custom validator callable.
+    """
 
     if not isinstance(schema, dict):
         raise ValueError("Invalid schema, expected a dictionary")
+
+    if root_schema is None:
+        root_schema = schema
+
+    if JSON_SCHEMA_REF in schema:
+        return LazySchema(schema[JSON_SCHEMA_REF], root_schema)
+
+    if (enum_values := schema.get("enum")) is not None:
+        if not isinstance(enum_values, list):
+            raise ValueError("Invalid schema, enum should be a list")
+        if schema.get("nullable") is True:
+            return vol.Any(vol.In(enum_values), None)
+        return vol.In(enum_values)
 
     for keyword in OPENAPI_UNSUPPORTED_KEYWORDS:
         if keyword in schema:
@@ -464,7 +567,9 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
             raise ValueError("Invalid schema, oneOf should be a list")
         # This implements anyOf semantics sice it matches any of the subschemas,
         # not just one of them.
-        return vol.Any(*[convert_to_voluptuous(sub_schema) for sub_schema in one_of])
+        return vol.Any(
+            *[convert_to_voluptuous(sub_schema, root_schema) for sub_schema in one_of]
+        )
 
     if (any_of := schema.get("anyOf")) is not None:
         if not isinstance(any_of, list):
@@ -477,7 +582,10 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
         )
         if not (is_required_constraint and schema.get("type") == "object"):
             return vol.Any(
-                *[convert_to_voluptuous(sub_schema) for sub_schema in any_of]
+                *[
+                    convert_to_voluptuous(sub_schema, root_schema)
+                    for sub_schema in any_of
+                ]
             )
 
     if (schema_type := schema.get("type")) is None:
@@ -498,7 +606,7 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
             else:
                 base_schema = schema.copy()
                 base_schema["type"] = t
-                validators.append(convert_to_voluptuous(base_schema))
+                validators.append(convert_to_voluptuous(base_schema, root_schema))
         return vol.Any(*validators)
 
     if (basic_type := TYPES_MAP_REV.get(schema_type)) is not None:
@@ -533,7 +641,7 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
         properties = {}
         required_properties = set(schema.get("required", []))
         for key, value in schema.get("properties", {}).items():
-            value_type = convert_to_voluptuous(value)
+            value_type = convert_to_voluptuous(value, root_schema)
             description: str | None = None
             if isinstance(value, dict):
                 description = value.get("description")
@@ -550,9 +658,12 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
             if any_of_keys:
                 properties[vol.Required(vol.Any(*any_of_keys))] = object
 
-        validator = None
-        if schema.get("additionalProperties") is True:
+        extra_schema = schema.get("additionalProperties")
+        if extra_schema is True:
             validator = vol.Schema(properties, extra=vol.ALLOW_EXTRA)
+        elif isinstance(extra_schema, dict):
+            properties[vol.Extra] = convert_to_voluptuous(extra_schema, root_schema)
+            validator = vol.Schema(properties)
         else:
             validator = vol.Schema(properties)
 
@@ -563,7 +674,7 @@ def convert_to_voluptuous(schema: dict) -> vol.Schema:
         return validator
 
     if schema_type == "array":
-        item_validator = convert_to_voluptuous(schema["items"])
+        item_validator = convert_to_voluptuous(schema["items"], root_schema)
         min_items = schema.get("minItems")
         max_items = schema.get("maxItems")
 
