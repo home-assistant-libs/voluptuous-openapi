@@ -515,7 +515,9 @@ class LazySchema:
         """
         if self._compiled_schema is None:
             target_schema = resolve_ref(self.ref, self.root_schema)
-            self._compiled_schema = convert_to_voluptuous(target_schema, self.root_schema)
+            self._compiled_schema = convert_to_voluptuous(
+                target_schema, self.root_schema
+            )
         return self._compiled_schema(value)
 
     def __eq__(self, other: Any) -> bool:
@@ -565,7 +567,9 @@ def convert_to_voluptuous(schema: dict, root_schema: dict | None = None) -> Any:
             raise ValueError("Invalid schema, oneOf should be a list")
         # This implements anyOf semantics sice it matches any of the subschemas,
         # not just one of them.
-        return vol.Any(*[convert_to_voluptuous(sub_schema, root_schema) for sub_schema in one_of])
+        return vol.Any(
+            *[convert_to_voluptuous(sub_schema, root_schema) for sub_schema in one_of]
+        )
 
     if (any_of := schema.get("anyOf")) is not None:
         if not isinstance(any_of, list):
@@ -578,7 +582,10 @@ def convert_to_voluptuous(schema: dict, root_schema: dict | None = None) -> Any:
         )
         if not (is_required_constraint and schema.get("type") == "object"):
             return vol.Any(
-                *[convert_to_voluptuous(sub_schema, root_schema) for sub_schema in any_of]
+                *[
+                    convert_to_voluptuous(sub_schema, root_schema)
+                    for sub_schema in any_of
+                ]
             )
 
     if (schema_type := schema.get("type")) is None:
