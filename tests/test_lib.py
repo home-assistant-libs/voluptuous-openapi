@@ -1019,6 +1019,7 @@ def test_required_any_of_inner_description():
 
 
 def test_simple_ref_defs() -> None:
+    """Test basic JSON pointer reference resolution using the $defs keyword."""
     schema = {
         "$defs": {
             "MyInt": {"type": "integer"}
@@ -1039,7 +1040,7 @@ def test_simple_ref_defs() -> None:
 
 
 def test_definitions_compatibility() -> None:
-    # Older drafts used "definitions" instead of "$defs"
+    """Test compatibility with older JSON Schema drafts using definitions instead of $defs."""
     schema = {
         "definitions": {
             "MyInt": {"type": "integer"}
@@ -1058,6 +1059,7 @@ def test_definitions_compatibility() -> None:
 
 
 def test_chained_refs() -> None:
+    """Test chained references where one reference points to another reference."""
     schema = {
         "$defs": {
             "Level2": {"type": "integer"},
@@ -1077,7 +1079,7 @@ def test_chained_refs() -> None:
 
 
 def test_root_self_ref() -> None:
-    # A dictionary where value can recursively be a dictionary
+    """Test root self-reference (#) for recursively nested object structures."""
     schema = {
         "type": "object",
         "properties": {
@@ -1097,6 +1099,7 @@ def test_root_self_ref() -> None:
 
 
 def test_recursive_tree() -> None:
+    """Test recursive tree node reference validation at arbitrary nesting depths."""
     schema = {
         "$defs": {
             "Node": {
@@ -1149,6 +1152,7 @@ def test_recursive_tree() -> None:
 
 
 def test_anonymized_field_definition() -> None:
+    """Test anonymized FieldDefinition schema containing recursive struct and list elements."""
     schema = {
         "$defs": {
             "FieldDefinition": {
@@ -1212,6 +1216,7 @@ def test_anonymized_field_definition() -> None:
 
 
 def test_anonymized_ghp_home_automation() -> None:
+    """Test anonymized GhpHomeAutomation schema containing nested comparisons and operands."""
     schema = {
         "$defs": {
             "Comparison": {
