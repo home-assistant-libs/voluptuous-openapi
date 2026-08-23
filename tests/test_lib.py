@@ -903,6 +903,61 @@ def test_with_min_max_items_fails_validation(extra_tasks_data, input_data):
         validator(input_data)
 
 
+def test_unique_items() -> None:
+    """Test converting an array with uniqueItems enabled."""
+    validator = convert_to_voluptuous(
+        {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+    )
+
+    assert validator(["one", "two"]) == ["one", "two"]
+    with pytest.raises(vol.Invalid):
+        validator(["one", "one"])
+
+
+def test_unique_items_false() -> None:
+    """Test that uniqueItems false allows duplicates."""
+    validator = convert_to_voluptuous(
+        {"type": "array", "items": {"type": "string"}, "uniqueItems": False}
+    )
+
+    assert validator(["one", "one"]) == ["one", "one"]
+
+
+def test_convert_schema_with_unique_items_reference() -> None:
+    """Test round-trip conversion of uniqueItems behind a reference."""
+    schema = {
+        "$defs": {
+            "UniqueStrings": {
+                "type": "array",
+                "items": {"type": "string"},
+                "uniqueItems": True,
+            }
+        },
+        "type": "object",
+        "properties": {"values": {"$ref": "#/$defs/UniqueStrings"}},
+    }
+
+    vol_schema = convert_to_voluptuous(schema)
+
+    assert vol_schema({"values": ["one", "two"]}) == {
+        "values": ["one", "two"]
+    }
+    with pytest.raises(vol.Invalid):
+        vol_schema({"values": ["one", "one"]})
+
+    assert convert(vol_schema) == {
+        "type": "object",
+        "properties": {
+            "values": {
+                "type": "array",
+                "items": {"type": "string"},
+                "uniqueItems": True,
+            }
+        },
+        "required": [],
+    }
+
+
 def test_required_any_of():
     """Test schemas with Required(Any(...)) constraints."""
     assert {

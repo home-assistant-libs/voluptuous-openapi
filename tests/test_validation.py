@@ -258,6 +258,23 @@ def test_string_list(validator: Validator) -> None:
 @pytest.mark.parametrize(
     "validator",
     generate_validators(
+        {"type": "array", "items": {"type": "string"}, "uniqueItems": True},
+        vol.All([str], vol.Unique()),
+    ),
+    ids=TEST_IDS,
+)
+def test_unique_string_list(validator: Validator) -> None:
+    """Test a list of unique strings."""
+    validator([])
+    validator(["one", "two"])
+
+    with pytest.raises(InvalidFormat):
+        validator(["one", "one"])
+
+
+@pytest.mark.parametrize(
+    "validator",
+    generate_validators(
         {
             "type": "object",
             "properties": {"id": {"type": "integer"}, "name": {"type": "string"}},

@@ -25,7 +25,6 @@ UNSUPPORTED = object()
 OPENAPI_UNSUPPORTED_KEYWORDS = {
     "allOf",
     "multipleOf",
-    "uniqueItems",
 }
 
 # The standard JSON Schema reference keyword
@@ -246,6 +245,9 @@ def convert(
         if schema.max is not None:
             val["maxLength"] = schema.max
         return val
+
+    if isinstance(schema, vol.Unique):
+        return {"uniqueItems": True}
 
     if isinstance(schema, vol.Datetime):
         return {
@@ -716,12 +718,16 @@ def convert_to_voluptuous(schema: dict, root_schema: dict | None = None) -> Any:
         min_items = schema.get("minItems")
         max_items = schema.get("maxItems")
 
+        validators = [[item_validator]]
+
         if min_items is not None or max_items is not None:
-            validator = vol.Schema(
-                vol.All([item_validator], vol.Length(min=min_items, max=max_items))
-            )
-        else:
-            validator = vol.Schema([item_validator])
+            validators.append(vol.Length(min=min_items, max=max_items))
+        if schema.get("uniqueItems") is True:
+            validators.append(vol.Unique())
+
+        validator = vol.Schema(
+            vol.All(*validators) if len(validators) > 1 else validators[0]
+        )
 
         # Handle OpenAPI 3.0 nullable property
         if schema.get("nullable") is True:
