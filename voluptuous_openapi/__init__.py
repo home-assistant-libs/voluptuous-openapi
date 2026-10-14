@@ -697,7 +697,9 @@ def convert_to_voluptuous(schema: dict, root_schema: dict | None = None) -> Any:
                 properties[vol.Required(vol.Any(*any_of_keys))] = object
 
         extra_schema = schema.get("additionalProperties")
-        if extra_schema is True:
+        if extra_schema is True or extra_schema == {}:
+            # An empty schema ({}) matches every value, so under
+            # additionalProperties it is equivalent to true.
             validator = vol.Schema(properties, extra=vol.ALLOW_EXTRA)
         elif isinstance(extra_schema, dict):
             properties[vol.Extra] = convert_to_voluptuous(extra_schema, root_schema)

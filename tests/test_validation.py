@@ -348,6 +348,64 @@ def test_allow_extra(validator: Validator) -> None:
 @pytest.mark.parametrize(
     "validator",
     generate_validators(
+        {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "additionalProperties": {},
+        },
+        vol.Schema(
+            {vol.Required("id"): int, vol.Optional("name"): str}, extra=vol.ALLOW_EXTRA
+        ),
+    ),
+    ids=TEST_IDS,
+)
+def test_allow_extra_empty_schema(validator: Validator) -> None:
+    """Test additionalProperties: {} allows any extra value.
+
+    The empty schema matches every value, so it is equivalent to
+    ``additionalProperties: true``. Emitted by zod-to-json-schema for
+    schemas such as ``z.record(z.unknown())``. See #106.
+    """
+    validator({"id": 1})
+    validator({"id": 1, "extra-key": "hello"})
+
+    with pytest.raises(InvalidFormat):
+        validator(123)
+
+
+@pytest.mark.parametrize(
+    "validator",
+    generate_validators(
+        {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "additionalProperties": {"type": "string"},
+        },
+        vol.Schema(
+            {vol.Required("id"): int, vol.Optional("name"): str, vol.Extra: str}
+        ),
+    ),
+    ids=TEST_IDS,
+)
+def test_typed_extra(validator: Validator) -> None:
+    """Test a typed additionalProperties still validates extra values.
+
+    Pins the distinction from the empty schema: extra values must match the
+    referenced schema rather than being accepted unconditionally.
+    """
+    validator({"id": 1})
+    validator({"id": 1, "extra-key": "hello"})
+
+    with pytest.raises(InvalidFormat):
+        validator({"id": 1, "extra-key": 123})
+
+    with pytest.raises(InvalidFormat):
+        validator(123)
+
+
+@pytest.mark.parametrize(
+    "validator",
+    generate_validators(
         {"type": "null"},
         vol.Schema(None),
     ),
