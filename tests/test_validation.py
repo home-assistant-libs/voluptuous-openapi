@@ -19,7 +19,6 @@ import logging
 from voluptuous_openapi import convert, convert_to_voluptuous, OpenApiVersion
 from jsonschema.exceptions import ValidationError
 
-
 _LOGGER = logging.getLogger(__name__)
 
 # Validator type used to represent a validation function for a specific schema type

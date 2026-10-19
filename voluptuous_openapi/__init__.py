@@ -10,7 +10,6 @@ from types import NoneType, UnionType
 
 import voluptuous as vol
 
-
 TYPES_MAP = {
     int: "integer",
     str: "string",
